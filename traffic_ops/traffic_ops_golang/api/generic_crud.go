@@ -153,7 +153,7 @@ func makeLastUpdatedQuery(val GenericReader, h map[string][]string) bool {
 		log.Warnf("Error while executing last updated query %v", err)
 		return runSecond
 	}
-	
+
 	// The only time we dont want to run the second query is when the first one returned 0 rows
 	if err == sql.ErrNoRows || !rowsMod.Next() {
 		runSecond = false
