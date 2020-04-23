@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 	"strings"
@@ -403,7 +405,7 @@ func createConsistentHashQueryParams(tx *sql.Tx, dsID int, consistentHashQueryPa
 	return c, nil
 }
 
-func (ds *TODeliveryService) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (ds *TODeliveryService) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	version := ds.APIInfo().Version
 	if version == nil {
 		return nil, nil, errors.New("TODeliveryService.Read called with nil API version"), http.StatusInternalServerError
@@ -413,7 +415,8 @@ func (ds *TODeliveryService) Read(map[string][]string) ([]interface{}, error, er
 	}
 
 	returnable := []interface{}{}
-	dses, userErr, sysErr, errCode := readGetDeliveryServices(ds.APIInfo().Params, ds.APIInfo().Tx, ds.APIInfo().User)
+
+	dses, userErr, sysErr, errCode := readGetDeliveryServices(h, ds.APIInfo().Params, ds.APIInfo().Tx, ds.APIInfo().User)
 
 	if sysErr != nil {
 		sysErr = errors.New("reading dses: " + sysErr.Error())
@@ -438,7 +441,7 @@ func (ds *TODeliveryService) Read(map[string][]string) ([]interface{}, error, er
 			return nil, nil, fmt.Errorf("TODeliveryService.Read called with invalid API version: %d.%d", version.Major, version.Minor), http.StatusInternalServerError
 		}
 	}
-	return returnable, nil, nil, http.StatusOK
+	return returnable, nil, nil, errCode
 }
 
 func UpdateV12(w http.ResponseWriter, r *http.Request) {
@@ -886,7 +889,47 @@ func (v *TODeliveryService) DeleteQuery() string {
 	return `DELETE FROM deliveryservice WHERE id = :id`
 }
 
-func readGetDeliveryServices(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.DeliveryServiceNullable, error, error, int) {
+func makeFirstQuery(h map[string][]string, val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func readGetDeliveryServices(h map[string][]string, params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.DeliveryServiceNullable, error, error, int) {
 	if strings.HasSuffix(params["id"], ".json") {
 		params["id"] = params["id"][:len(params["id"])-len(".json")]
 	}
@@ -906,6 +949,14 @@ func readGetDeliveryServices(params map[string]string, tx *sqlx.Tx, user *auth.C
 		"logsEnabled":      dbhelpers.WhereColumnInfo{"ds.logs_enabled", api.IsBool},
 		"tenant":           dbhelpers.WhereColumnInfo{"ds.tenant_id", api.IsInt},
 		"signingAlgorithm": dbhelpers.WhereColumnInfo{"ds.signing_algorithm", nil},
+		"lastUpdated":      dbhelpers.WhereColumnInfo{"ds.last_updated", nil},
+	}
+
+	code := http.StatusOK
+	runSecond := makeFirstQuery(h,queryParamsToSQLCols, tx)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return []tc.DeliveryServiceNullable{}, nil, nil, code
 	}
 
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(params, queryParamsToSQLCols)

@@ -121,7 +121,7 @@ func GenericCreateNameBasedID(val GenericCreator) (error, error, int) {
 	return nil, nil, http.StatusOK
 }
 
-func makeLastUpdatedQuery(val GenericReader, h map[string][]string) bool {
+func MakeLastUpdatedQuery(val GenericReader, h map[string][]string) bool {
 	ims := []string{}
 	lastUpdatedFilter := make(map[string]string)
 	runSecond := true
@@ -164,7 +164,7 @@ func makeLastUpdatedQuery(val GenericReader, h map[string][]string) bool {
 func GenericRead(val GenericReader, h map[string][]string) ([]interface{}, error, error, int) {
 	vals := []interface{}{}
 	code := http.StatusOK
-	runSecond := makeLastUpdatedQuery(val, h)
+	runSecond := MakeLastUpdatedQuery(val, h)
 	if runSecond == false {
 		code = http.StatusNotModified
 		return vals, nil, nil, code

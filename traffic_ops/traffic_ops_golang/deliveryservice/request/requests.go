@@ -20,8 +20,11 @@ package request
  */
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 
@@ -75,8 +78,48 @@ func (req TODeliveryServiceRequest) GetType() string {
 	return "deliveryservice_request"
 }
 
+func makeFirstQuery(val *TODeliveryServiceRequest, h map[string][]string, cols map[string]dbhelpers.WhereColumnInfo) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, cols)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectDeliveryServiceRequestsQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
 // Read implements the api.Reader interface
-func (req *TODeliveryServiceRequest) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (req *TODeliveryServiceRequest) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	queryParamsToQueryCols := map[string]dbhelpers.WhereColumnInfo{
 		"assignee":   dbhelpers.WhereColumnInfo{Column: "s.username"},
 		"assigneeId": dbhelpers.WhereColumnInfo{Column: "r.assignee_id", Checker: api.IsInt},
@@ -86,6 +129,7 @@ func (req *TODeliveryServiceRequest) Read(map[string][]string) ([]interface{}, e
 		"id":         dbhelpers.WhereColumnInfo{Column: "r.id", Checker: api.IsInt},
 		"status":     dbhelpers.WhereColumnInfo{Column: "r.status"},
 		"xmlId":      dbhelpers.WhereColumnInfo{Column: "r.deliveryservice->>'xmlId'"},
+		"lastUpdated": dbhelpers.WhereColumnInfo{Column: "r.last_updated", Checker: nil},
 	}
 
 	p := req.APIInfo().Params
@@ -97,36 +141,42 @@ func (req *TODeliveryServiceRequest) Read(map[string][]string) ([]interface{}, e
 		}
 		p["orderby"] = "xmlId"
 	}
-
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(p, queryParamsToQueryCols)
-	if len(errs) > 0 {
-		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
-	}
-	tenantIDs, err := tenant.GetUserTenantIDListTx(req.APIInfo().Tx.Tx, req.APIInfo().User.TenantID)
-	if err != nil {
-		return nil, nil, errors.New("dsr getting tenant list: " + err.Error()), http.StatusInternalServerError
-	}
-	where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "CAST(r.deliveryservice->>'tenantId' AS bigint)", tenantIDs)
-
-	query := selectDeliveryServiceRequestsQuery() + where + orderBy + pagination
-	log.Debugln("Query is ", query)
-
-	rows, err := req.APIInfo().Tx.NamedQuery(query, queryValues)
-	if err != nil {
-		return nil, nil, errors.New("dsr querying: " + err.Error()), http.StatusInternalServerError
-	}
-	defer rows.Close()
-
 	deliveryServiceRequests := []interface{}{}
-	for rows.Next() {
-		var s TODeliveryServiceRequest
-		if err = rows.StructScan(&s); err != nil {
-			return nil, nil, errors.New("dsr scanning: " + err.Error()), http.StatusInternalServerError
-		}
-		deliveryServiceRequests = append(deliveryServiceRequests, s)
+	code := http.StatusOK
+	runSecond := makeFirstQuery(req, h, queryParamsToQueryCols)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return deliveryServiceRequests, nil, nil, code
 	}
+	if runSecond {
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(p, queryParamsToQueryCols)
+		if len(errs) > 0 {
+			return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		}
+		tenantIDs, err := tenant.GetUserTenantIDListTx(req.APIInfo().Tx.Tx, req.APIInfo().User.TenantID)
+		if err != nil {
+			return nil, nil, errors.New("dsr getting tenant list: " + err.Error()), http.StatusInternalServerError
+		}
+		where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "CAST(r.deliveryservice->>'tenantId' AS bigint)", tenantIDs)
 
-	return deliveryServiceRequests, nil, nil, http.StatusOK
+		query := selectDeliveryServiceRequestsQuery() + where + orderBy + pagination
+		log.Debugln("Query is ", query)
+
+		rows, err := req.APIInfo().Tx.NamedQuery(query, queryValues)
+		if err != nil {
+			return nil, nil, errors.New("dsr querying: " + err.Error()), http.StatusInternalServerError
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var s TODeliveryServiceRequest
+			if err = rows.StructScan(&s); err != nil {
+				return nil, nil, errors.New("dsr scanning: " + err.Error()), http.StatusInternalServerError
+			}
+			deliveryServiceRequests = append(deliveryServiceRequests, s)
+		}
+	}
+	return deliveryServiceRequests, nil, nil, code
 }
 
 func selectDeliveryServiceRequestsQuery() string {

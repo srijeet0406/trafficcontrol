@@ -23,6 +23,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-log"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 	"strings"
@@ -171,13 +174,13 @@ func (rc *RequiredCapability) Update() (error, error, int) {
 }
 
 // Read implements the api.CRUDer interface.
-func (rc *RequiredCapability) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (rc *RequiredCapability) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	tenantIDs, err := rc.getTenantIDs()
 	if err != nil {
 		return nil, nil, err, http.StatusInternalServerError
 	}
 
-	capabilities, userErr, sysErr, errCode := rc.getCapabilities(tenantIDs)
+	capabilities, userErr, sysErr, errCode := rc.getCapabilities(h, tenantIDs)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}
@@ -198,30 +201,77 @@ func (rc *RequiredCapability) getTenantIDs() ([]int, error) {
 	return tenantIDs, nil
 }
 
-func (rc *RequiredCapability) getCapabilities(tenantIDs []int) ([]tc.DeliveryServicesRequiredCapability, error, error, int) {
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(rc.APIInfo().Params, rc.ParamColumns())
+func makeFirstQueryRc(val *RequiredCapability, h map[string][]string) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val.ParamColumns())
 	if len(errs) > 0 {
-		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
 	}
 
-	where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "ds.tenant_id", tenantIDs)
-	query := rc.SelectQuery() + where + orderBy + pagination
-
-	rows, err := rc.APIInfo().Tx.NamedQuery(query, queryValues)
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
 	if err != nil {
-		return nil, nil, err, http.StatusInternalServerError
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
 	}
-	defer rows.Close()
 
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func (rc *RequiredCapability) getCapabilities(h map[string][]string, tenantIDs []int) ([]tc.DeliveryServicesRequiredCapability, error, error, int) {
 	var results []tc.DeliveryServicesRequiredCapability
-	for rows.Next() {
-		var result tc.DeliveryServicesRequiredCapability
-		if err := rows.StructScan(&result); err != nil {
-			return nil, nil, fmt.Errorf("%s get scanning: %s", rc.GetType(), err.Error()), http.StatusInternalServerError
-		}
-		results = append(results, result)
+	code := http.StatusOK
+	runSecond := makeFirstQueryRc(rc, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return results, nil, nil, code
 	}
+	if runSecond {
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(rc.APIInfo().Params, rc.ParamColumns())
+		if len(errs) > 0 {
+			return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		}
 
+		where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "ds.tenant_id", tenantIDs)
+		query := rc.SelectQuery() + where + orderBy + pagination
+
+		rows, err := rc.APIInfo().Tx.NamedQuery(query, queryValues)
+		if err != nil {
+			return nil, nil, err, http.StatusInternalServerError
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var result tc.DeliveryServicesRequiredCapability
+			if err := rows.StructScan(&result); err != nil {
+				return nil, nil, fmt.Errorf("%s get scanning: %s", rc.GetType(), err.Error()), http.StatusInternalServerError
+			}
+			results = append(results, result)
+		}
+	}
 	return results, nil, nil, 0
 }
 

@@ -188,7 +188,7 @@ func DeprecatedReadHandler(reader Reader, alternative *string) http.HandlerFunc 
 		obj := reflect.New(objectType).Interface().(Reader)
 		obj.SetInfo(inf)
 
-		results, userErr, sysErr, errCode := obj.Read(nil)
+		results, userErr, sysErr, errCode := obj.Read(r.Header)
 		if userErr != nil || sysErr != nil {
 			userErr = LogErr(r, http.StatusInternalServerError, userErr, sysErr)
 			alerts.AddAlerts(tc.CreateErrorAlerts(userErr))

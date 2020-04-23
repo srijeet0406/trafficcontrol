@@ -99,8 +99,8 @@ func (comment *TODeliveryServiceRequestComment) Create() (error, error, int) {
 	return api.GenericCreate(comment)
 }
 
-func (comment *TODeliveryServiceRequestComment) Read(map[string][]string) ([]interface{}, error, error, int) {
-	return api.GenericRead(comment, nil)
+func (comment *TODeliveryServiceRequestComment) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(comment, h)
 }
 
 func (comment *TODeliveryServiceRequestComment) Update() (error, error, int) {

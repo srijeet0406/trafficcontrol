@@ -23,6 +23,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 	"strings"
@@ -379,7 +381,7 @@ func (cg *TOCacheGroup) deleteCoordinate(coordinateID int) error {
 	return nil
 }
 
-func (cg *TOCacheGroup) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (cg *TOCacheGroup) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	// Query Parameters to Database Query column mappings
 	// see the fields mapped in the SQL query
 	queryParamsToQueryCols := map[string]dbhelpers.WhereColumnInfo{
@@ -387,49 +389,97 @@ func (cg *TOCacheGroup) Read(map[string][]string) ([]interface{}, error, error, 
 		"name":      dbhelpers.WhereColumnInfo{"cachegroup.name", nil},
 		"shortName": dbhelpers.WhereColumnInfo{"cachegroup.short_name", nil},
 		"type":      dbhelpers.WhereColumnInfo{"cachegroup.type", nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"cachegroup.last_updated", nil},
 	}
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(cg.ReqInfo.Params, queryParamsToQueryCols)
-	if len(errs) > 0 {
-		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
-	}
-
-	query := SelectQuery() + where + orderBy + pagination
-	rows, err := cg.ReqInfo.Tx.NamedQuery(query, queryValues)
-	if err != nil {
-		return nil, nil, errors.New("cachegroup read: querying: " + err.Error()), http.StatusInternalServerError
-	}
-	defer rows.Close()
-
 	cacheGroups := []interface{}{}
-	for rows.Next() {
-		var s TOCacheGroup
-		lms := make([]tc.LocalizationMethod, 0)
-		cgfs := make([]string, 0)
-		if err = rows.Scan(
-			&s.ID,
-			&s.Name,
-			&s.ShortName,
-			&s.Latitude,
-			&s.Longitude,
-			pq.Array(&lms),
-			&s.ParentCachegroupID,
-			&s.ParentName,
-			&s.SecondaryParentCachegroupID,
-			&s.SecondaryParentName,
-			&s.Type,
-			&s.TypeID,
-			&s.LastUpdated,
-			pq.Array(&cgfs),
-			&s.FallbackToClosest,
-		); err != nil {
-			return nil, nil, errors.New("cachegroup read: scanning: " + err.Error()), http.StatusInternalServerError
+	code := http.StatusOK
+	runSecond := makeFirstQuery(cg, queryParamsToQueryCols, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return cacheGroups, nil, nil, code
+	}
+	if runSecond {
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(cg.ReqInfo.Params, queryParamsToQueryCols)
+		if len(errs) > 0 {
+			return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
 		}
-		s.LocalizationMethods = &lms
-		s.Fallbacks = &cgfs
-		cacheGroups = append(cacheGroups, s)
+
+		query := SelectQuery() + where + orderBy + pagination
+		rows, err := cg.ReqInfo.Tx.NamedQuery(query, queryValues)
+		if err != nil {
+			return nil, nil, errors.New("cachegroup read: querying: " + err.Error()), http.StatusInternalServerError
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var s TOCacheGroup
+			lms := make([]tc.LocalizationMethod, 0)
+			cgfs := make([]string, 0)
+			if err = rows.Scan(
+				&s.ID,
+				&s.Name,
+				&s.ShortName,
+				&s.Latitude,
+				&s.Longitude,
+				pq.Array(&lms),
+				&s.ParentCachegroupID,
+				&s.ParentName,
+				&s.SecondaryParentCachegroupID,
+				&s.SecondaryParentName,
+				&s.Type,
+				&s.TypeID,
+				&s.LastUpdated,
+				pq.Array(&cgfs),
+				&s.FallbackToClosest,
+			); err != nil {
+				return nil, nil, errors.New("cachegroup read: scanning: " + err.Error()), http.StatusInternalServerError
+			}
+			s.LocalizationMethods = &lms
+			s.Fallbacks = &cgfs
+			cacheGroups = append(cacheGroups, s)
+		}
+	}
+	return cacheGroups, nil, nil, http.StatusOK
+}
+
+func makeFirstQuery(val *TOCacheGroup, cols map[string]dbhelpers.WhereColumnInfo, h map[string][]string) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, cols)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
 	}
 
-	return cacheGroups, nil, nil, http.StatusOK
+	// First query
+	query := SelectQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
 }
 
 //The TOCacheGroup implementation of the Updater interface

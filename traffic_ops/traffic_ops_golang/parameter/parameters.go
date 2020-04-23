@@ -20,7 +20,11 @@ package parameter
  */
 
 import (
+	"database/sql"
 	"errors"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-log"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 
@@ -123,8 +127,55 @@ func (pa *TOParameter) Create() (error, error, int) {
 	return api.GenericCreate(pa)
 }
 
-func (param *TOParameter) Read(map[string][]string) ([]interface{}, error, error, int) {
+func makeFirstQuery(val *TOParameter, h map[string][]string) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val.ParamColumns())
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func (param *TOParameter) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	queryParamsToQueryCols := param.ParamColumns()
+	params := []interface{}{}
+	code := http.StatusOK
+	runSecond := makeFirstQuery(param, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return params, nil, nil, code
+	}
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(param.APIInfo().Params, queryParamsToQueryCols)
 	if len(errs) > 0 {
 		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
@@ -137,7 +188,6 @@ func (param *TOParameter) Read(map[string][]string) ([]interface{}, error, error
 	}
 	defer rows.Close()
 
-	params := []interface{}{}
 	for rows.Next() {
 		var p tc.ParameterNullable
 		if err = rows.StructScan(&p); err != nil {
@@ -149,7 +199,7 @@ func (param *TOParameter) Read(map[string][]string) ([]interface{}, error, error
 		params = append(params, p)
 	}
 
-	return params, nil, nil, http.StatusOK
+	return params, nil, nil, code
 }
 
 func (pa *TOParameter) Update() (error, error, int) {

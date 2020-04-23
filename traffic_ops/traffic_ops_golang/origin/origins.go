@@ -23,6 +23,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 
@@ -129,10 +131,10 @@ func (origin *TOOrigin) IsTenantAuthorized(user *auth.CurrentUser) (bool, error)
 	return tenant.IsResourceAuthorizedToUserTx(*currentTenantID, user, origin.ReqInfo.Tx.Tx)
 }
 
-func (origin *TOOrigin) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (origin *TOOrigin) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	returnable := []interface{}{}
 
-	origins, userErr, sysErr, errCode := getOrigins(origin.ReqInfo.Params, origin.ReqInfo.Tx, origin.ReqInfo.User)
+	origins, userErr, sysErr, errCode := getOrigins(h, origin.ReqInfo.Params, origin.ReqInfo.Tx, origin.ReqInfo.User)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}
@@ -144,7 +146,46 @@ func (origin *TOOrigin) Read(map[string][]string) ([]interface{}, error, error, 
 	return returnable, nil, nil, http.StatusOK
 }
 
-func getOrigins(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.Origin, error, error, int) {
+func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map[string][]string) bool {
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims := h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func getOrigins(h map[string][]string, params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.Origin, error, error, int) {
 	var rows *sqlx.Rows
 	var err error
 
@@ -159,8 +200,15 @@ func getOrigins(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) (
 		"primary":         dbhelpers.WhereColumnInfo{"o.is_primary", api.IsBool},
 		"profileId":       dbhelpers.WhereColumnInfo{"o.profile", api.IsInt},
 		"tenant":          dbhelpers.WhereColumnInfo{"o.tenant", api.IsInt},
+		"lastUpdated":     dbhelpers.WhereColumnInfo{"o.last_updated", nil},
 	}
 
+	code := http.StatusOK
+	runSecond := makeFirstQuery(queryParamsToSQLCols, tx, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return []tc.Origin{}, nil, nil, code
+	}
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(params, queryParamsToSQLCols)
 	if len(errs) > 0 {
 		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
@@ -191,7 +239,7 @@ func getOrigins(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) (
 		}
 		origins = append(origins, s)
 	}
-	return origins, nil, nil, http.StatusOK
+	return origins, nil, nil, code
 }
 
 func selectQuery() string {

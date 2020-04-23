@@ -25,6 +25,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 	"strings"
@@ -197,7 +199,7 @@ func (s TOServer) ChangeLogMessage(action string) (string, error) {
 	return message, nil
 }
 
-func (s *TOServer) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (s *TOServer) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	version := s.APIInfo().Version
 	if version == nil {
 		return nil, nil, errors.New("TOServer.Read called with nil API version"), http.StatusInternalServerError
@@ -205,7 +207,7 @@ func (s *TOServer) Read(map[string][]string) ([]interface{}, error, error, int) 
 
 	returnable := []interface{}{}
 
-	servers, userErr, sysErr, errCode := getServers(s.ReqInfo.Params, s.ReqInfo.Tx, s.ReqInfo.User)
+	servers, userErr, sysErr, errCode := getServers(h, s.ReqInfo.Params, s.ReqInfo.Tx, s.ReqInfo.User)
 
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
@@ -226,7 +228,46 @@ func (s *TOServer) Read(map[string][]string) ([]interface{}, error, error, int) 
 	return returnable, nil, nil, http.StatusOK
 }
 
-func getServers(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.ServerNullable, error, error, int) {
+func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map[string][]string) bool {
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims := h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func getServers(h map[string][]string, params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) ([]tc.ServerNullable, error, error, int) {
 	// Query Parameters to Database Query column mappings
 	// see the fields mapped in the SQL query
 	queryParamsToSQLCols := map[string]dbhelpers.WhereColumnInfo{
@@ -240,8 +281,15 @@ func getServers(params map[string]string, tx *sqlx.Tx, user *auth.CurrentUser) (
 		"status":           dbhelpers.WhereColumnInfo{"st.name", nil},
 		"type":             dbhelpers.WhereColumnInfo{"t.name", nil},
 		"dsId":             dbhelpers.WhereColumnInfo{"dss.deliveryservice", nil},
+		"lastUpdated":      dbhelpers.WhereColumnInfo{"s.last_updated", nil},
 	}
 
+	code := http.StatusOK
+	runSecond := makeFirstQuery(queryParamsToSQLCols, tx, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return []tc.ServerNullable{}, nil, nil, code
+	}
 	usesMids := false
 	queryAddition := ""
 	if dsIDStr, ok := params[`dsId`]; ok {

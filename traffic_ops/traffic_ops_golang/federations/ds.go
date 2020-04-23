@@ -159,8 +159,8 @@ func (v *TOFedDSes) GetKeyFieldsInfo() []api.KeyFieldInfo {
 	}
 }
 
-func (v *TOFedDSes) Read(map[string][]string) ([]interface{}, error, error, int) {
-	return api.GenericRead(v, nil)
+func (v *TOFedDSes) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(v, h)
 }
 
 func (v *TOFedDSes) Delete() (error, error, int) {

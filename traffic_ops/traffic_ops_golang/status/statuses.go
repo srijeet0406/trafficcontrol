@@ -92,8 +92,8 @@ func (status TOStatus) Validate() error {
 	return util.JoinErrs(tovalidate.ToErrors(errs))
 }
 
-func (st *TOStatus) Read(map[string][]string) ([]interface{}, error, error, int) {
-	readVals, userErr, sysErr, errCode := api.GenericRead(st, nil)
+func (st *TOStatus) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	readVals, userErr, sysErr, errCode := api.GenericRead(st, h)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}

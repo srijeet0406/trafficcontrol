@@ -99,11 +99,11 @@ func (pl *TOPhysLocation) Validate() error {
 	return nil
 }
 
-func (pl *TOPhysLocation) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (pl *TOPhysLocation) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	if _, ok := pl.APIInfo().Params["orderby"]; !ok {
 		pl.APIInfo().Params["orderby"] = "name"
 	}
-	return api.GenericRead(pl, nil)
+	return api.GenericRead(pl, h)
 }
 func (pl *TOPhysLocation) Update() (error, error, int) { return api.GenericUpdate(pl) }
 func (pl *TOPhysLocation) Create() (error, error, int) { return api.GenericCreate(pl) }

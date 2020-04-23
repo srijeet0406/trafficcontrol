@@ -144,7 +144,7 @@ func checkTenancy(tenantID *int, tenantIDs []int) bool {
 	return false
 }
 
-func (fed *TOCDNFederation) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (fed *TOCDNFederation) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	if idstr, ok := fed.APIInfo().Params["id"]; ok {
 		id, err := strconv.Atoi(idstr)
 		if err != nil {
@@ -158,7 +158,7 @@ func (fed *TOCDNFederation) Read(map[string][]string) ([]interface{}, error, err
 		return nil, nil, errors.New("getting tenant list for user: " + err.Error()), http.StatusInternalServerError
 	}
 
-	federations, userErr, sysErr, errCode := api.GenericRead(fed, nil)
+	federations, userErr, sysErr, errCode := api.GenericRead(fed, h)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}

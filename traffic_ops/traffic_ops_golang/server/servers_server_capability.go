@@ -127,8 +127,8 @@ func (ssc *TOServerServerCapability) Update() (error, error, int) {
 	return nil, nil, http.StatusNotImplemented
 }
 
-func (ssc *TOServerServerCapability) Read(map[string][]string) ([]interface{}, error, error, int) {
-	return api.GenericRead(ssc, nil)
+func (ssc *TOServerServerCapability) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(ssc, h)
 }
 
 func (ssc *TOServerServerCapability) Delete() (error, error, int) {

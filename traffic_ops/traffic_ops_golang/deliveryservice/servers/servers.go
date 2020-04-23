@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 	"strings"
@@ -596,8 +598,48 @@ type TODSSDeliveryService struct {
 	tc.DeliveryServiceNullable
 }
 
+func makeFirstQuery(val *TODSSDeliveryService, h map[string][]string, cols map[string]dbhelpers.WhereColumnInfo) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, cols)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := deliveryservice.GetDSSelectQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
 // Read shows all of the delivery services associated with the specified server.
-func (dss *TODSSDeliveryService) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (dss *TODSSDeliveryService) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	returnable := []interface{}{}
 	params := dss.APIInfo().Params
 	tx := dss.APIInfo().Tx.Tx
@@ -616,43 +658,52 @@ func (dss *TODSSDeliveryService) Read(map[string][]string) ([]interface{}, error
 	queryParamsToSQLCols := map[string]dbhelpers.WhereColumnInfo{
 		"xml_id": dbhelpers.WhereColumnInfo{"ds.xml_id", nil},
 		"xmlId":  dbhelpers.WhereColumnInfo{"ds.xml_id", nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"ds.last_updated", nil},
 	}
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(params, queryParamsToSQLCols)
-	if len(errs) > 0 {
-		return nil, nil, errors.New("reading server dses: " + util.JoinErrsStr(errs)), http.StatusInternalServerError
+	code := http.StatusOK
+	runSecond := makeFirstQuery(dss, h, queryParamsToSQLCols)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return returnable, nil, nil, code
 	}
+	if runSecond {
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(params, queryParamsToSQLCols)
+		if len(errs) > 0 {
+			return nil, nil, errors.New("reading server dses: " + util.JoinErrsStr(errs)), http.StatusInternalServerError
+		}
 
-	if where != "" {
-		where = where + " AND "
-	} else {
-		where = "WHERE "
-	}
-	where += "ds.id in (SELECT deliveryService FROM deliveryservice_server where server = :server)"
+		if where != "" {
+			where = where + " AND "
+		} else {
+			where = "WHERE "
+		}
+		where += "ds.id in (SELECT deliveryService FROM deliveryservice_server where server = :server)"
 
-	tenantIDs, err := tenant.GetUserTenantIDListTx(tx, user.TenantID)
-	if err != nil {
-		log.Errorln("received error querying for user's tenants: " + err.Error())
-		return nil, nil, err, http.StatusInternalServerError
-	}
-	where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "ds.tenant_id", tenantIDs)
+		tenantIDs, err := tenant.GetUserTenantIDListTx(tx, user.TenantID)
+		if err != nil {
+			log.Errorln("received error querying for user's tenants: " + err.Error())
+			return nil, nil, err, http.StatusInternalServerError
+		}
+		where, queryValues = dbhelpers.AddTenancyCheck(where, queryValues, "ds.tenant_id", tenantIDs)
 
-	query := deliveryservice.GetDSSelectQuery() + where + orderBy + pagination
-	queryValues["server"] = dss.APIInfo().Params["id"]
-	log.Debugln("generated deliveryServices query: " + query)
-	log.Debugf("executing with values: %++v\n", queryValues)
+		query := deliveryservice.GetDSSelectQuery() + where + orderBy + pagination
+		queryValues["server"] = dss.APIInfo().Params["id"]
+		log.Debugln("generated deliveryServices query: " + query)
+		log.Debugf("executing with values: %++v\n", queryValues)
 
-	dses, userErr, sysErr, _ := deliveryservice.GetDeliveryServices(query, queryValues, dss.APIInfo().Tx)
-	if sysErr != nil {
-		sysErr = fmt.Errorf("reading server dses: %v ", sysErr)
-	}
-	if userErr != nil || sysErr != nil {
-		return nil, userErr, sysErr, http.StatusInternalServerError
-	}
+		dses, userErr, sysErr, _ := deliveryservice.GetDeliveryServices(query, queryValues, dss.APIInfo().Tx)
+		if sysErr != nil {
+			sysErr = fmt.Errorf("reading server dses: %v ", sysErr)
+		}
+		if userErr != nil || sysErr != nil {
+			return nil, userErr, sysErr, http.StatusInternalServerError
+		}
 
-	for _, ds := range dses {
-		returnable = append(returnable, ds)
+		for _, ds := range dses {
+			returnable = append(returnable, ds)
+		}
 	}
-	return returnable, nil, nil, http.StatusOK
+	return returnable, nil, nil, code
 }
 
 type DSInfo struct {

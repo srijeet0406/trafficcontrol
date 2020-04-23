@@ -91,13 +91,13 @@ func (division TODivision) Validate() error {
 }
 
 func (dv *TODivision) Create() (error, error, int) { return api.GenericCreate(dv) }
-func (dv *TODivision) Read(map[string][]string) ([]interface{}, error, error, int) {
+func (dv *TODivision) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	params := dv.APIInfo().Params
 	// TODO move to router, and do for all endpoints
 	if strings.HasSuffix(params["name"], ".json") {
 		params["name"] = params["name"][:len(params["name"])-len(".json")]
 	}
-	return api.GenericRead(dv, nil)
+	return api.GenericRead(dv, h)
 }
 func (dv *TODivision) Update() (error, error, int) { return api.GenericUpdate(dv) }
 func (dv *TODivision) Delete() (error, error, int) { return api.GenericDelete(dv) }

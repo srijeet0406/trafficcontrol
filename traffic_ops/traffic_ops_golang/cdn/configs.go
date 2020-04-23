@@ -43,8 +43,8 @@ id
 FROM cdn`
 }
 
-func (v *TOCDNConf) Read(map[string][]string) ([]interface{}, error, error, int) {
-	return api.GenericRead(v, nil)
+func (v *TOCDNConf) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(v, h)
 }
 
 func (v TOCDNConf) GetType() string {

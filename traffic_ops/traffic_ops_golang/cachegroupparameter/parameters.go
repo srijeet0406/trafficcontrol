@@ -21,9 +21,13 @@ package cachegroupparameter
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-log"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -57,7 +61,7 @@ func (cgparam *TOCacheGroupParameter) ParamColumns() map[string]dbhelpers.WhereC
 	return map[string]dbhelpers.WhereColumnInfo{
 		CacheGroupIDQueryParam: dbhelpers.WhereColumnInfo{"cgp.cachegroup", api.IsInt},
 		ParameterIDQueryParam:  dbhelpers.WhereColumnInfo{"p.id", api.IsInt},
-		lastUpdatedQueryParam:  dbhelpers.WhereColumnInfo{"typ.last_updated", nil},
+		lastUpdatedQueryParam:  dbhelpers.WhereColumnInfo{"cgp.last_updated", nil},
 	}
 }
 
@@ -65,46 +69,93 @@ func (cgparam *TOCacheGroupParameter) GetType() string {
 	return "cachegroup parameter"
 }
 
-func (cgparam *TOCacheGroupParameter) Read(map[string][]string) ([]interface{}, error, error, int) {
+func makeFirstQuery(val *TOCacheGroupParameter, h map[string][]string) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val.ParamColumns())
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func (cgparam *TOCacheGroupParameter) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	queryParamsToQueryCols := cgparam.ParamColumns()
 	parameters := cgparam.APIInfo().Params
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(parameters, queryParamsToQueryCols)
-	if len(errs) > 0 {
-		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
-	}
-
-	cgID, err := strconv.Atoi(parameters[CacheGroupIDQueryParam])
-	if err != nil {
-		return nil, errors.New("cache group id must be an integer"), nil, http.StatusBadRequest
-	}
-
-	_, ok, err := dbhelpers.GetCacheGroupNameFromID(cgparam.ReqInfo.Tx.Tx, int64(cgID))
-	if err != nil {
-		return nil, nil, err, http.StatusInternalServerError
-	} else if !ok {
-		return nil, errors.New("cachegroup does not exist"), nil, http.StatusNotFound
-	}
-
-	query := selectQuery() + where + orderBy + pagination
-	rows, err := cgparam.ReqInfo.Tx.NamedQuery(query, queryValues)
-	if err != nil {
-		return nil, nil, errors.New("querying " + cgparam.GetType() + ": " + err.Error()), http.StatusInternalServerError
-	}
-	defer rows.Close()
-
+	code := http.StatusOK
+	runSecond := makeFirstQuery(cgparam, h)
 	params := []interface{}{}
-	for rows.Next() {
-		var p tc.CacheGroupParameterNullable
-		if err = rows.StructScan(&p); err != nil {
-			return nil, nil, errors.New("scanning " + cgparam.GetType() + ": " + err.Error()), http.StatusInternalServerError
-		}
-		if p.Secure != nil && *p.Secure && cgparam.ReqInfo.User.PrivLevel < auth.PrivLevelAdmin {
-			p.Value = &parameter.HiddenField
-		}
-		params = append(params, p)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return params, nil, nil, code
 	}
+	if runSecond {
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(parameters, queryParamsToQueryCols)
+		if len(errs) > 0 {
+			return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		}
 
-	return params, nil, nil, http.StatusOK
+		cgID, err := strconv.Atoi(parameters[CacheGroupIDQueryParam])
+		if err != nil {
+			return nil, errors.New("cache group id must be an integer"), nil, http.StatusBadRequest
+		}
+
+		_, ok, err := dbhelpers.GetCacheGroupNameFromID(cgparam.ReqInfo.Tx.Tx, int64(cgID))
+		if err != nil {
+			return nil, nil, err, http.StatusInternalServerError
+		} else if !ok {
+			return nil, errors.New("cachegroup does not exist"), nil, http.StatusNotFound
+		}
+
+		query := selectQuery() + where + orderBy + pagination
+		rows, err := cgparam.ReqInfo.Tx.NamedQuery(query, queryValues)
+		if err != nil {
+			return nil, nil, errors.New("querying " + cgparam.GetType() + ": " + err.Error()), http.StatusInternalServerError
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var p tc.CacheGroupParameterNullable
+			if err = rows.StructScan(&p); err != nil {
+				return nil, nil, errors.New("scanning " + cgparam.GetType() + ": " + err.Error()), http.StatusInternalServerError
+			}
+			if p.Secure != nil && *p.Secure && cgparam.ReqInfo.User.PrivLevel < auth.PrivLevelAdmin {
+				p.Value = &parameter.HiddenField
+			}
+			params = append(params, p)
+		}
+	}
+	return params, nil, nil, code
 }
 
 func selectQuery() string {
