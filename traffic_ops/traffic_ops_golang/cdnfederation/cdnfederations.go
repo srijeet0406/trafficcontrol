@@ -54,7 +54,8 @@ func (v *TOCDNFederation) SelectQuery() string {
 }
 func (v *TOCDNFederation) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	cols := map[string]dbhelpers.WhereColumnInfo{
-		"id": dbhelpers.WhereColumnInfo{Column: "federation.id", Checker: api.IsInt},
+		"id":          dbhelpers.WhereColumnInfo{Column: "federation.id", Checker: api.IsInt},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"federation.last_updated", nil},
 	}
 	if v.ID == nil {
 		cols["name"] = dbhelpers.WhereColumnInfo{Column: "cdn.name", Checker: nil}
@@ -143,7 +144,7 @@ func checkTenancy(tenantID *int, tenantIDs []int) bool {
 	return false
 }
 
-func (fed *TOCDNFederation) Read() ([]interface{}, error, error, int) {
+func (fed *TOCDNFederation) Read(map[string][]string) ([]interface{}, error, error, int) {
 	if idstr, ok := fed.APIInfo().Params["id"]; ok {
 		id, err := strconv.Atoi(idstr)
 		if err != nil {
@@ -157,7 +158,7 @@ func (fed *TOCDNFederation) Read() ([]interface{}, error, error, int) {
 		return nil, nil, errors.New("getting tenant list for user: " + err.Error()), http.StatusInternalServerError
 	}
 
-	federations, userErr, sysErr, errCode := api.GenericRead(fed)
+	federations, userErr, sysErr, errCode := api.GenericRead(fed, nil)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}

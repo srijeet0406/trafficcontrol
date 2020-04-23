@@ -52,6 +52,7 @@ func (v *TOStaticDNSEntry) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 		"ttl":               dbhelpers.WhereColumnInfo{"sde.ttl", nil},
 		"type":              dbhelpers.WhereColumnInfo{"tp.name", nil},
 		"typeId":            dbhelpers.WhereColumnInfo{"tp.id", nil},
+		"lastUpdated":       dbhelpers.WhereColumnInfo{"sde.last_updated", nil},
 	}
 }
 func (v *TOStaticDNSEntry) UpdateQuery() string { return updateQuery() }
@@ -115,10 +116,12 @@ func (staticDNSEntry TOStaticDNSEntry) Validate() error {
 	return util.JoinErrs(tovalidate.ToErrors(errs))
 }
 
-func (en *TOStaticDNSEntry) Read() ([]interface{}, error, error, int) { return api.GenericRead(en) }
-func (en *TOStaticDNSEntry) Create() (error, error, int)              { return api.GenericCreate(en) }
-func (en *TOStaticDNSEntry) Update() (error, error, int)              { return api.GenericUpdate(en) }
-func (en *TOStaticDNSEntry) Delete() (error, error, int)              { return api.GenericDelete(en) }
+func (en *TOStaticDNSEntry) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(en, nil)
+}
+func (en *TOStaticDNSEntry) Create() (error, error, int) { return api.GenericCreate(en) }
+func (en *TOStaticDNSEntry) Update() (error, error, int) { return api.GenericUpdate(en) }
+func (en *TOStaticDNSEntry) Delete() (error, error, int) { return api.GenericDelete(en) }
 
 func insertQuery() string {
 	query := `INSERT INTO staticdnsentry (

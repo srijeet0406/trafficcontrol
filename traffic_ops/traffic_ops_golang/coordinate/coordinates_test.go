@@ -71,6 +71,7 @@ func TestReadCoordinates(t *testing.T) {
 	testCoords := getTestCoordinates()
 	cols := test.ColsFromStructByTag("db", tc.Coordinate{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testCoords {
 		rows = rows.AddRow(
@@ -80,9 +81,17 @@ func TestReadCoordinates(t *testing.T) {
 			ts.Longitude,
 			ts.LastUpdated,
 		)
+		rows2 = rows2.AddRow(
+			ts.ID,
+			ts.Name,
+			ts.Latitude,
+			ts.Longitude,
+			ts.LastUpdated,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"id": "1"}}
@@ -90,7 +99,7 @@ func TestReadCoordinates(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.CoordinateNullable{},
 	}
-	coordinates, userErr, sysErr, _ := obj.Read()
+	coordinates, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

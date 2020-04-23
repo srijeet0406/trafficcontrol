@@ -21,6 +21,7 @@ package profile
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -197,6 +198,12 @@ func TestCopyProfile(t *testing.T) {
 
 	expectedID := 2
 
+	//existingProfileParams := tc.ProfileParameterNullable{
+	//	ParameterID:              util.IntPtr(1),
+	//	Profile:     util.StrPtr("existingProfile"),
+	//	LastUpdated:           &tc.TimeNoMod{Time: time.Now()},
+	//}
+
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -210,6 +217,7 @@ func TestCopyProfile(t *testing.T) {
 	mockReadProfile(t, mock, existingProfile, 1)
 	mockInsertProfile(t, mock, expectedID)
 	mockFindParams(t, mock, profile.Response.ExistingName)
+	//mockReadParams(t, mock, existingProfileParams, 1)
 	mockInsertParams(t, mock, profile.Response.ID)
 
 	req := mockHTTPReq(t, "profiles/name/{new_profile}/copy/{existing_profile}", db)
@@ -220,7 +228,7 @@ func TestCopyProfile(t *testing.T) {
 	if got, want := rr.Code, http.StatusOK; got != want {
 		t.Errorf("hanlder returned wrong status code: got %v want %v", got, want)
 	}
-
+	fmt.Print("Got ", rr.Code)
 	expErr := "created new profile [newProfile] from existing profile [existingProfile]"
 	if !strings.Contains(rr.Body.String(), expErr) {
 		t.Fatalf("got %s; expected %s", rr.Body.String(), expErr)
@@ -301,6 +309,26 @@ func mockInsertParams(t *testing.T, mock sqlmock.Sqlmock, id int) {
 	)
 
 	mock.ExpectQuery("INSERT INTO profile_parameter").WillReturnRows(existingRow)
+}
+
+func mockReadParams(t *testing.T, mock sqlmock.Sqlmock, params tc.ProfileParameterNullable, results int) {
+	t.Helper()
+
+	existingRow2 := sqlmock.NewRows([]string{
+		"profile",
+		"parameter_id",
+		"last_updated",
+	})
+
+	for i := 0; i < results; i++ {
+		existingRow2.AddRow(
+			params.Profile,
+			params.ParameterID,
+			params.LastUpdated,
+		)
+	}
+
+	mock.ExpectQuery("SELECT .* FROM profile_parameter").WillReturnRows(existingRow2)
 }
 
 func mockHTTPReq(t *testing.T, path string, db *sqlx.DB) *http.Request {

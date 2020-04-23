@@ -61,6 +61,7 @@ func TestReadRegions(t *testing.T) {
 	testRegions := getTestRegions()
 	cols := test.ColsFromStructByTag("db", tc.Region{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testRegions {
 		rows = rows.AddRow(
@@ -69,9 +70,16 @@ func TestReadRegions(t *testing.T) {
 			ts.LastUpdated,
 			ts.Name,
 		)
+		rows2 = rows2.AddRow(
+			ts.Division,
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"id": "1"}}
@@ -79,7 +87,7 @@ func TestReadRegions(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.Region{},
 	}
-	regions, userErr, sysErr, _ := obj.Read()
+	regions, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

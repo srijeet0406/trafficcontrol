@@ -61,6 +61,7 @@ func TestGetDivisions(t *testing.T) {
 	testCase := getTestDivisions()
 	cols := test.ColsFromStructByTag("db", tc.Division{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testCase {
 		rows = rows.AddRow(
@@ -68,9 +69,15 @@ func TestGetDivisions(t *testing.T) {
 			ts.LastUpdated,
 			ts.Name,
 		)
+		rows2 = rows2.AddRow(
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"dsId": "1"}}
@@ -78,12 +85,12 @@ func TestGetDivisions(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.DivisionNullable{},
 	}
-	vals, userErr, sysErr, _ := obj.Read()
+	vals, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}
 	if len(vals) != 2 {
-		t.Errorf("read expected: len(vals) == 1, actual: %v", len(vals))
+		t.Errorf("read expected: len(vals) == 2, actual: %v", len(vals))
 	}
 
 }

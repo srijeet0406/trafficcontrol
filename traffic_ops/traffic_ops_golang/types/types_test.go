@@ -72,6 +72,7 @@ func TestGetType(t *testing.T) {
 	testCase := getTestTypes()
 	cols := test.ColsFromStructByTag("db", tc.TypeNullable{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testCase {
 		rows = rows.AddRow(
@@ -81,9 +82,17 @@ func TestGetType(t *testing.T) {
 			ts.Description,
 			ts.UseInTable,
 		)
+		rows2 = rows2.AddRow(
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+			ts.Description,
+			ts.UseInTable,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"dsId": "1"}}
@@ -92,7 +101,7 @@ func TestGetType(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.TypeNullable{},
 	}
-	types, userErr, sysErr, _ := obj.Read()
+	types, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

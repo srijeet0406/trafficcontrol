@@ -44,8 +44,9 @@ func (v *TOCoordinate) NewReadObj() interface{}       { return &tc.CoordinateNul
 func (v *TOCoordinate) SelectQuery() string           { return selectQuery() }
 func (v *TOCoordinate) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
-		"id":   dbhelpers.WhereColumnInfo{"id", api.IsInt},
-		"name": dbhelpers.WhereColumnInfo{"name", nil},
+		"id":          dbhelpers.WhereColumnInfo{"id", api.IsInt},
+		"name":        dbhelpers.WhereColumnInfo{"name", nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"last_updated", nil},
 	}
 }
 func (v *TOCoordinate) UpdateQuery() string { return updateQuery() }
@@ -117,10 +118,12 @@ func (coordinate TOCoordinate) Validate() error {
 	return util.JoinErrs(tovalidate.ToErrors(errs))
 }
 
-func (coord *TOCoordinate) Create() (error, error, int)              { return api.GenericCreate(coord) }
-func (coord *TOCoordinate) Read() ([]interface{}, error, error, int) { return api.GenericRead(coord) }
-func (coord *TOCoordinate) Update() (error, error, int)              { return api.GenericUpdate(coord) }
-func (coord *TOCoordinate) Delete() (error, error, int)              { return api.GenericDelete(coord) }
+func (coord *TOCoordinate) Create() (error, error, int) { return api.GenericCreate(coord) }
+func (coord *TOCoordinate) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(coord, nil)
+}
+func (coord *TOCoordinate) Update() (error, error, int) { return api.GenericUpdate(coord) }
+func (coord *TOCoordinate) Delete() (error, error, int) { return api.GenericDelete(coord) }
 
 func selectQuery() string {
 	query := `SELECT

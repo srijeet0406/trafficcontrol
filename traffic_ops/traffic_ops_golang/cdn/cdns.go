@@ -49,6 +49,7 @@ func (v *TOCDN) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 		"dnssecEnabled": dbhelpers.WhereColumnInfo{"dnssec_enabled", nil},
 		"id":            dbhelpers.WhereColumnInfo{"id", api.IsInt},
 		"name":          dbhelpers.WhereColumnInfo{"name", nil},
+		"lastUpdated":   dbhelpers.WhereColumnInfo{"last_updated", nil},
 	}
 }
 func (v *TOCDN) UpdateQuery() string { return updateQuery() }
@@ -123,7 +124,9 @@ func (cdn *TOCDN) Create() (error, error, int) {
 	return api.GenericCreate(cdn)
 }
 
-func (cdn *TOCDN) Read() ([]interface{}, error, error, int) { return api.GenericRead(cdn) }
+func (cdn *TOCDN) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(cdn, nil)
+}
 
 func (cdn *TOCDN) Update() (error, error, int) {
 	*cdn.DomainName = strings.ToLower(*cdn.DomainName)

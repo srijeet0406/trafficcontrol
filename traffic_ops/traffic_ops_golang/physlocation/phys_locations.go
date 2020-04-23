@@ -43,9 +43,10 @@ func (v *TOPhysLocation) NewReadObj() interface{}       { return &tc.PhysLocatio
 func (v *TOPhysLocation) SelectQuery() string           { return selectQuery() }
 func (v *TOPhysLocation) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
-		"name":   dbhelpers.WhereColumnInfo{"pl.name", nil},
-		"id":     dbhelpers.WhereColumnInfo{"pl.id", api.IsInt},
-		"region": dbhelpers.WhereColumnInfo{"pl.region", api.IsInt},
+		"name":        dbhelpers.WhereColumnInfo{"pl.name", nil},
+		"id":          dbhelpers.WhereColumnInfo{"pl.id", api.IsInt},
+		"region":      dbhelpers.WhereColumnInfo{"pl.region", api.IsInt},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"p.last_updated", nil},
 	}
 }
 func (v *TOPhysLocation) UpdateQuery() string { return updateQuery() }
@@ -98,11 +99,11 @@ func (pl *TOPhysLocation) Validate() error {
 	return nil
 }
 
-func (pl *TOPhysLocation) Read() ([]interface{}, error, error, int) {
+func (pl *TOPhysLocation) Read(map[string][]string) ([]interface{}, error, error, int) {
 	if _, ok := pl.APIInfo().Params["orderby"]; !ok {
 		pl.APIInfo().Params["orderby"] = "name"
 	}
-	return api.GenericRead(pl)
+	return api.GenericRead(pl, nil)
 }
 func (pl *TOPhysLocation) Update() (error, error, int) { return api.GenericUpdate(pl) }
 func (pl *TOPhysLocation) Create() (error, error, int) { return api.GenericCreate(pl) }

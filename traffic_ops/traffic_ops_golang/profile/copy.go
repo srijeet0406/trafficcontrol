@@ -95,7 +95,7 @@ func copyProfile(inf *api.APIInfo, p *tc.ProfileCopy) errorDetails {
 		tc.ProfileNullable{},
 	}
 
-	profiles, userErr, sysErr, errCode := toProfile.Read()
+	profiles, userErr, sysErr, errCode := toProfile.Read(nil)
 	if userErr != nil || sysErr != nil {
 		return errorDetails{
 			userErr: userErr,
@@ -148,8 +148,9 @@ func copyParameters(inf *api.APIInfo, p *tc.ProfileCopy) errorDetails {
 		tc.ProfileParameterNullable{},
 	}
 
-	parameters, userErr, sysErr, errCode := toParam.Read()
+	parameters, userErr, sysErr, errCode := toParam.Read(nil)
 	if userErr != nil || sysErr != nil {
+		fmt.Println("hereeeeeee ", sysErr)
 		return errorDetails{
 			userErr: userErr,
 			sysErr:  sysErr,

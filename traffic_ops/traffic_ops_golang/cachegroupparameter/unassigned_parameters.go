@@ -43,6 +43,7 @@ type TOCacheGroupUnassignedParameter struct {
 func (cgunparam *TOCacheGroupUnassignedParameter) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
 		ParameterIDQueryParam: dbhelpers.WhereColumnInfo{"p.id", api.IsInt},
+		lastUpdatedQueryParam: dbhelpers.WhereColumnInfo{"p.last_updated", nil},
 	}
 }
 
@@ -51,7 +52,7 @@ func (cgunparam *TOCacheGroupUnassignedParameter) GetType() string {
 	return "cachegroup_unassigned_params"
 }
 
-func (cgunparam *TOCacheGroupUnassignedParameter) Read() ([]interface{}, error, error, int) {
+func (cgunparam *TOCacheGroupUnassignedParameter) Read(map[string][]string) ([]interface{}, error, error, int) {
 	queryParamsToQueryCols := cgunparam.ParamColumns()
 	parameters := cgunparam.APIInfo().Params
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(parameters, queryParamsToQueryCols)

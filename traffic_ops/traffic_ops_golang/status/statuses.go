@@ -50,6 +50,7 @@ func (v *TOStatus) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 		"id":          dbhelpers.WhereColumnInfo{"id", api.IsInt},
 		"description": dbhelpers.WhereColumnInfo{"description", nil},
 		"name":        dbhelpers.WhereColumnInfo{"name", nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"last_updated", nil},
 	}
 }
 func (v *TOStatus) UpdateQuery() string { return updateQuery() }
@@ -91,8 +92,8 @@ func (status TOStatus) Validate() error {
 	return util.JoinErrs(tovalidate.ToErrors(errs))
 }
 
-func (st *TOStatus) Read() ([]interface{}, error, error, int) {
-	readVals, userErr, sysErr, errCode := api.GenericRead(st)
+func (st *TOStatus) Read(map[string][]string) ([]interface{}, error, error, int) {
+	readVals, userErr, sysErr, errCode := api.GenericRead(st, nil)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}

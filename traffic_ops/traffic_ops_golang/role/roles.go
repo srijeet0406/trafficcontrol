@@ -158,9 +158,9 @@ func (role *TORole) deleteRoleCapabilityAssociations(tx *sqlx.Tx) (error, error,
 	return nil, nil, http.StatusOK
 }
 
-func (role *TORole) Read() ([]interface{}, error, error, int) {
+func (role *TORole) Read(map[string][]string) ([]interface{}, error, error, int) {
 	version := role.APIInfo().Version
-	vals, userErr, sysErr, errCode := api.GenericRead(role)
+	vals, userErr, sysErr, errCode := api.GenericRead(role, nil)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}

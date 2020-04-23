@@ -72,7 +72,7 @@ AND status=(SELECT id FROM status WHERE name='ONLINE')
 `
 
 // WriteResp takes any object, serializes it as JSON, and writes that to w. Any errors are logged and written to w via tc.GetHandleErrorsFunc.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func WriteResp(w http.ResponseWriter, r *http.Request, v interface{}) {
 	resp := struct {
 		Response interface{} `json:"response"`
@@ -99,7 +99,7 @@ func WriteRespRaw(w http.ResponseWriter, r *http.Request, v interface{}) {
 }
 
 // WriteRespVals is like WriteResp, but also takes a map of root-level values to write. The API most commonly needs these for meta-parameters, like size, limit, and orderby.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func WriteRespVals(w http.ResponseWriter, r *http.Request, v interface{}, vals map[string]interface{}) {
 	if respWritten(r) {
 		log.Errorf("WriteRespVals called after a write already occurred! Not double-writing! Path %s", r.URL.Path)
@@ -122,7 +122,7 @@ func WriteRespVals(w http.ResponseWriter, r *http.Request, v interface{}, vals m
 //
 // The tx may be nil, if there is no transaction. Passing a nil tx is strongly discouraged if a transaction exists, because it will result in copy-paste errors for the common APIInfo use case.
 //
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func HandleErr(w http.ResponseWriter, r *http.Request, tx *sql.Tx, statusCode int, userErr error, sysErr error) {
 	if respWritten(r) {
 		log.Errorf("HandleErr called after a write already occurred! Attempting to write the error anyway! Path %s", r.URL.Path)
@@ -152,7 +152,7 @@ func HandleErrOptionalDeprecation(w http.ResponseWriter, r *http.Request, tx *sq
 //
 // The tx may be nil, if there is no transaction. Passing a nil tx is strongly discouraged if a transaction exists, because it will result in copy-paste errors for the common APIInfo use case.
 //
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func HandleDeprecatedErr(w http.ResponseWriter, r *http.Request, tx *sql.Tx, statusCode int, userErr error, sysErr error, alternative *string) {
 	if respWritten(r) {
 		log.Errorf("HandleDeprecatedErr called after a write already occurred! Attempting to write the error anyway! Path %s", r.URL.Path)
@@ -187,7 +187,7 @@ func LogErr(r *http.Request, errCode int, userErr error, sysErr error) error {
 	return userErr
 }
 
-// handleSimpleErr is a helper for HandleErr.
+// handleSimpleErr is a makeLastUpdatedQuery for HandleErr.
 // This exists to prevent exposing HandleErr calls in this file with nil transactions, which might be copy-pasted creating bugs.
 func handleSimpleErr(w http.ResponseWriter, r *http.Request, statusCode int, userErr error, sysErr error) {
 	userErr = LogErr(r, statusCode, userErr, sysErr)
@@ -202,8 +202,8 @@ func handleSimpleErr(w http.ResponseWriter, r *http.Request, statusCode int, use
 	w.Write(append(respBts, '\n'))
 }
 
-// RespWriter is a helper to allow a one-line response, for endpoints with a function that returns the object that needs to be written and an error.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// RespWriter is a makeLastUpdatedQuery to allow a one-line response, for endpoints with a function that returns the object that needs to be written and an error.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func RespWriter(w http.ResponseWriter, r *http.Request, tx *sql.Tx) func(v interface{}, err error) {
 	return func(v interface{}, err error) {
 		if err != nil {
@@ -215,7 +215,7 @@ func RespWriter(w http.ResponseWriter, r *http.Request, tx *sql.Tx) func(v inter
 }
 
 // RespWriterVals is like RespWriter, but also takes a map of root-level values to write. The API most commonly needs these for meta-parameters, like size, limit, and orderby.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func RespWriterVals(w http.ResponseWriter, r *http.Request, tx *sql.Tx, vals map[string]interface{}) func(v interface{}, err error) {
 	return func(v interface{}, err error) {
 		if err != nil {
@@ -227,7 +227,7 @@ func RespWriterVals(w http.ResponseWriter, r *http.Request, tx *sql.Tx, vals map
 }
 
 // WriteRespAlert creates an alert, serializes it as JSON, and writes that to w. Any errors are logged and written to w via tc.GetHandleErrorsFunc.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func WriteRespAlert(w http.ResponseWriter, r *http.Request, level tc.AlertLevel, msg string) {
 	if respWritten(r) {
 		log.Errorf("WriteRespAlert called after a write already occurred! Not double-writing! Path %s", r.URL.Path)
@@ -265,7 +265,7 @@ func WriteRespAlertNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 // WriteRespAlertObj Writes the given alert, and the given response object.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func WriteRespAlertObj(w http.ResponseWriter, r *http.Request, level tc.AlertLevel, msg string, obj interface{}) {
 	if respWritten(r) {
 		log.Errorf("WriteRespAlertObj called after a write already occurred! Not double-writing! Path %s", r.URL.Path)
@@ -338,7 +338,7 @@ func WriteAlertsObj(w http.ResponseWriter, r *http.Request, code int, alerts tc.
 }
 
 // IntParams parses integer parameters, and returns map of the given params, or an error if any integer param is not an integer. The intParams may be nil if no integer parameters are required. Note this does not check existence; if an integer paramter is required, it should be included in the requiredParams given to NewInfo.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func IntParams(params map[string]string, intParamNames []string) (map[string]int, error) {
 	intParams := map[string]int{}
 	for _, intParam := range intParamNames {
@@ -381,7 +381,7 @@ func StripParamJSON(params map[string]string) map[string]string {
 }
 
 // AllParams takes the request (in which the router has inserted context for path parameters), and an array of parameters required to be integers, and returns the map of combined parameters, and the map of int parameters; or a user or system error and the HTTP error code. The intParams may be nil if no integer parameters are required.
-// This is a helper for the common case; not using this in unusual cases is perfectly acceptable.
+// This is a makeLastUpdatedQuery for the common case; not using this in unusual cases is perfectly acceptable.
 func AllParams(req *http.Request, required []string, ints []string) (map[string]string, map[string]int, error, error, int) {
 	params, err := GetCombinedParams(req)
 	if err != nil {
@@ -689,19 +689,19 @@ func getReqID(ctx context.Context) (uint64, error) {
 }
 
 // setRespWritten sets the APIRespWrittenKey key in the Context of the given Request.
-// This is used to indicate that a response has been written with an API helper, and to prevent double-write errors.
-// If an API helper which responds is called after another response helper was already called, all API helpers will log an error, and not write the second response, except HandleErr, which will write its error anyway, along with its status code.
+// This is used to indicate that a response has been written with an API makeLastUpdatedQuery, and to prevent double-write errors.
+// If an API makeLastUpdatedQuery which responds is called after another response makeLastUpdatedQuery was already called, all API helpers will log an error, and not write the second response, except HandleErr, which will write its error anyway, along with its status code.
 func setRespWritten(r *http.Request) {
 	*r = *r.WithContext(context.WithValue(r.Context(), APIRespWrittenKey, struct{}{}))
 }
 
-// respWritten gets the APIRespWrittenKey key, which indicates whether an API response helper was previously called.
+// respWritten gets the APIRespWrittenKey key, which indicates whether an API response makeLastUpdatedQuery was previously called.
 // This is used to prevent double-write errors. See setRespWritten.
 func respWritten(r *http.Request) bool {
 	return r.Context().Value(APIRespWrittenKey) != nil
 }
 
-// small helper function to help with parsing below
+// small makeLastUpdatedQuery function to help with parsing below
 func toCamelCase(str string) string {
 	mutable := []byte(str)
 	for i := 0; i < len(str); i++ {

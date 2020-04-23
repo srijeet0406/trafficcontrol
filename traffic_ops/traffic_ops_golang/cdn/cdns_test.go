@@ -67,6 +67,7 @@ func TestReadCDNs(t *testing.T) {
 	testCDNs := getTestCDNs()
 	cols := test.ColsFromStructByTag("db", tc.CDN{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testCDNs {
 		rows = rows.AddRow(
@@ -76,9 +77,17 @@ func TestReadCDNs(t *testing.T) {
 			ts.LastUpdated,
 			ts.Name,
 		)
+		rows2 = rows2.AddRow(
+			ts.DNSSECEnabled,
+			ts.DomainName,
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"dsId": "1"}}
@@ -86,7 +95,7 @@ func TestReadCDNs(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.CDNNullable{},
 	}
-	cdns, userErr, sysErr, _ := obj.Read()
+	cdns, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

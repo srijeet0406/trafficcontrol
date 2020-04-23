@@ -20,13 +20,16 @@ package api
  */
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
-
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-log"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"github.com/apache/trafficcontrol/lib/go-tc"
 	"github.com/apache/trafficcontrol/lib/go-util"
 	"github.com/apache/trafficcontrol/traffic_ops/traffic_ops_golang/dbhelpers"
+	"net/http"
 )
 
 type GenericCreator interface {
@@ -118,28 +121,77 @@ func GenericCreateNameBasedID(val GenericCreator) (error, error, int) {
 	return nil, nil, http.StatusOK
 }
 
-func GenericRead(val GenericReader) ([]interface{}, error, error, int) {
-	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(val.APIInfo().Params, val.ParamColumns())
+func makeLastUpdatedQuery(val GenericReader, h map[string][]string) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val.ParamColumns())
 	if len(errs) > 0 {
-		return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
 	}
 
+	// First query
 	query := val.SelectQuery() + where + orderBy + pagination
-	rows, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	rowsMod, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
 	if err != nil {
-		return nil, nil, errors.New("querying " + val.GetType() + ": " + err.Error()), http.StatusInternalServerError
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
 	}
-	defer rows.Close()
+	
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
 
+func GenericRead(val GenericReader, h map[string][]string) ([]interface{}, error, error, int) {
 	vals := []interface{}{}
-	for rows.Next() {
-		v := val.NewReadObj()
-		if err = rows.StructScan(v); err != nil {
-			return nil, nil, errors.New("scanning " + val.GetType() + ": " + err.Error()), http.StatusInternalServerError
-		}
-		vals = append(vals, v)
+	code := http.StatusOK
+	runSecond := makeLastUpdatedQuery(val, h)
+	if runSecond == false {
+		code = http.StatusNotModified
+		return vals, nil, nil, code
 	}
-	return vals, nil, nil, http.StatusOK
+	if runSecond {
+		// Second query
+		where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(val.APIInfo().Params, val.ParamColumns())
+		if len(errs) > 0 {
+			return nil, util.JoinErrs(errs), nil, http.StatusBadRequest
+		}
+
+		query := val.SelectQuery() + where + orderBy + pagination
+		rows, err := val.APIInfo().Tx.NamedQuery(query, queryValues)
+		if err != nil {
+			return nil, nil, errors.New("querying " + val.GetType() + ": " + err.Error()), http.StatusInternalServerError
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			v := val.NewReadObj()
+			if err = rows.StructScan(v); err != nil {
+				return nil, nil, errors.New("scanning " + val.GetType() + ": " + err.Error()), http.StatusInternalServerError
+			}
+			vals = append(vals, v)
+		}
+	}
+	return vals, nil, nil, code
 }
 
 // GenericUpdate handles the common update case, where the update returns the new last_modified time.

@@ -117,7 +117,7 @@ func (v *TOUsers) GetType() string {
 	return fedUserType
 }
 
-func (v *TOUsers) Read() ([]interface{}, error, error, int) {
+func (v *TOUsers) Read(map[string][]string) ([]interface{}, error, error, int) {
 	fedIDStr := v.APIInfo().Params["id"]
 	fedID, err := strconv.Atoi(fedIDStr)
 	if err != nil {
@@ -129,7 +129,7 @@ func (v *TOUsers) Read() ([]interface{}, error, error, int) {
 	} else if !exists {
 		return nil, fmt.Errorf("federation %v not found", fedID), nil, http.StatusNotFound
 	}
-	return api.GenericRead(v)
+	return api.GenericRead(v, nil)
 }
 
 func (v *TOUsers) Delete() (error, error, int) { return api.GenericDelete(v) }

@@ -66,6 +66,7 @@ func TestGetProfileParameters(t *testing.T) {
 	testPPs := getTestProfileParameters()
 	cols := test.ColsFromStructByTag("db", tc.ProfileParametersNullable{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testPPs {
 		rows = rows.AddRow(
@@ -73,9 +74,15 @@ func TestGetProfileParameters(t *testing.T) {
 			ts.Profile,
 			ts.ParameterID,
 		)
+		rows2 = rows2.AddRow(
+			ts.LastUpdated,
+			ts.Profile,
+			ts.ParameterID,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	txx := db.MustBegin()
@@ -84,11 +91,10 @@ func TestGetProfileParameters(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.ProfileParameterNullable{},
 	}
-	pps, userErr, sysErr, _ := obj.Read()
+	pps, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}
-
 	if len(pps) != 2 {
 		t.Errorf("profileparameter.Read expected: len(pps) == 2, actual: %v", len(pps))
 	}

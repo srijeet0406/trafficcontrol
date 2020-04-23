@@ -41,6 +41,7 @@ const (
 	deliveryServiceQueryParam    = "deliveryServiceID"
 	requiredCapabilityQueryParam = "requiredCapability"
 	xmlIDQueryParam              = "xmlID"
+	lastUpdatedQueryParam        = "lastUpdated"
 )
 
 // RequiredCapability provides a type to define methods on.
@@ -82,6 +83,10 @@ func (rc *RequiredCapability) ParamColumns() map[string]dbhelpers.WhereColumnInf
 		},
 		requiredCapabilityQueryParam: dbhelpers.WhereColumnInfo{
 			Column:  "rc.required_capability",
+			Checker: nil,
+		},
+		lastUpdatedQueryParam: dbhelpers.WhereColumnInfo{
+			Column:  "rc.last_updated",
 			Checker: nil,
 		},
 	}
@@ -166,7 +171,7 @@ func (rc *RequiredCapability) Update() (error, error, int) {
 }
 
 // Read implements the api.CRUDer interface.
-func (rc *RequiredCapability) Read() ([]interface{}, error, error, int) {
+func (rc *RequiredCapability) Read(map[string][]string) ([]interface{}, error, error, int) {
 	tenantIDs, err := rc.getTenantIDs()
 	if err != nil {
 		return nil, nil, err, http.StatusInternalServerError

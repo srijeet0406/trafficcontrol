@@ -35,11 +35,12 @@ import (
 )
 
 const (
-	NameQueryParam       = "name"
-	SecureQueryParam     = "secure"
-	ConfigFileQueryParam = "configFile"
-	IDQueryParam         = "id"
-	ValueQueryParam      = "value"
+	NameQueryParam        = "name"
+	SecureQueryParam      = "secure"
+	ConfigFileQueryParam  = "configFile"
+	IDQueryParam          = "id"
+	ValueQueryParam       = "value"
+	LastUpdatedQueryParam = "lastUpdated"
 )
 
 var (
@@ -60,10 +61,11 @@ func (v *TOParameter) NewReadObj() interface{}       { return &tc.ParameterNulla
 func (v *TOParameter) SelectQuery() string           { return selectQuery() }
 func (v *TOParameter) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
-		ConfigFileQueryParam: dbhelpers.WhereColumnInfo{"p.config_file", nil},
-		IDQueryParam:         dbhelpers.WhereColumnInfo{"p.id", api.IsInt},
-		NameQueryParam:       dbhelpers.WhereColumnInfo{"p.name", nil},
-		SecureQueryParam:     dbhelpers.WhereColumnInfo{"p.secure", api.IsBool}}
+		ConfigFileQueryParam:  dbhelpers.WhereColumnInfo{"p.config_file", nil},
+		IDQueryParam:          dbhelpers.WhereColumnInfo{"p.id", api.IsInt},
+		NameQueryParam:        dbhelpers.WhereColumnInfo{"p.name", nil},
+		SecureQueryParam:      dbhelpers.WhereColumnInfo{"p.secure", api.IsBool},
+		LastUpdatedQueryParam: dbhelpers.WhereColumnInfo{"p.last_updated", nil}}
 }
 func (v *TOParameter) UpdateQuery() string { return updateQuery() }
 func (v *TOParameter) DeleteQuery() string { return deleteQuery() }
@@ -121,7 +123,7 @@ func (pa *TOParameter) Create() (error, error, int) {
 	return api.GenericCreate(pa)
 }
 
-func (param *TOParameter) Read() ([]interface{}, error, error, int) {
+func (param *TOParameter) Read(map[string][]string) ([]interface{}, error, error, int) {
 	queryParamsToQueryCols := param.ParamColumns()
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(param.APIInfo().Params, queryParamsToQueryCols)
 	if len(errs) > 0 {

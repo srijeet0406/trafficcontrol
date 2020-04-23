@@ -42,6 +42,7 @@ const (
 	ServerCapabilityQueryParam = "serverCapability"
 	ServerQueryParam           = "serverId"
 	ServerHostNameQueryParam   = "serverHostName"
+	LastUpdatedQueryParam      = "lastUpdated"
 )
 
 type (
@@ -66,6 +67,7 @@ func (ssc *TOServerServerCapability) ParamColumns() map[string]dbhelpers.WhereCo
 		ServerCapabilityQueryParam: dbhelpers.WhereColumnInfo{"sc.server_capability", nil},
 		ServerQueryParam:           dbhelpers.WhereColumnInfo{"s.id", api.IsInt},
 		ServerHostNameQueryParam:   dbhelpers.WhereColumnInfo{"s.host_name", nil},
+		LastUpdatedQueryParam:      dbhelpers.WhereColumnInfo{"s.last_updated", nil},
 	}
 
 }
@@ -125,8 +127,8 @@ func (ssc *TOServerServerCapability) Update() (error, error, int) {
 	return nil, nil, http.StatusNotImplemented
 }
 
-func (ssc *TOServerServerCapability) Read() ([]interface{}, error, error, int) {
-	return api.GenericRead(ssc)
+func (ssc *TOServerServerCapability) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(ssc, nil)
 }
 
 func (ssc *TOServerServerCapability) Delete() (error, error, int) {

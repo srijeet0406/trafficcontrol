@@ -51,6 +51,7 @@ func (v *TODeliveryServiceRequestComment) ParamColumns() map[string]dbhelpers.Wh
 		"author":                   dbhelpers.WhereColumnInfo{"a.username", nil},
 		"deliveryServiceRequestId": dbhelpers.WhereColumnInfo{"dsrc.deliveryservice_request_id", nil},
 		"id":                       dbhelpers.WhereColumnInfo{"dsrc.id", api.IsInt},
+		"lastUpdated":              dbhelpers.WhereColumnInfo{"dsrc.last_updated", nil},
 	}
 }
 func (v *TODeliveryServiceRequestComment) UpdateQuery() string { return updateQuery() }
@@ -98,8 +99,8 @@ func (comment *TODeliveryServiceRequestComment) Create() (error, error, int) {
 	return api.GenericCreate(comment)
 }
 
-func (comment *TODeliveryServiceRequestComment) Read() ([]interface{}, error, error, int) {
-	return api.GenericRead(comment)
+func (comment *TODeliveryServiceRequestComment) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(comment, nil)
 }
 
 func (comment *TODeliveryServiceRequestComment) Update() (error, error, int) {

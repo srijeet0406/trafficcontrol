@@ -67,7 +67,8 @@ DELETE FROM server_capability WHERE name=:name
 
 func (v *TOServerCapability) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
-		"name": {"sc.name", nil},
+		"name":        {"sc.name", nil},
+		"lastUpdated": {"sc.last_updated", nil},
 	}
 }
 
@@ -100,6 +101,8 @@ func (v *TOServerCapability) Validate() error {
 	return util.JoinErrs(tovalidate.ToErrors(errs))
 }
 
-func (v *TOServerCapability) Read() ([]interface{}, error, error, int) { return api.GenericRead(v) }
-func (v *TOServerCapability) Create() (error, error, int)              { return api.GenericCreateNameBasedID(v) }
-func (v *TOServerCapability) Delete() (error, error, int)              { return api.GenericDelete(v) }
+func (v *TOServerCapability) Read(map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(v, nil)
+}
+func (v *TOServerCapability) Create() (error, error, int) { return api.GenericCreateNameBasedID(v) }
+func (v *TOServerCapability) Delete() (error, error, int) { return api.GenericDelete(v) }

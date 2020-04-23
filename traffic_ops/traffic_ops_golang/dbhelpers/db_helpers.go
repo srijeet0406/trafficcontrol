@@ -194,7 +194,13 @@ func parseCriteriaAndQueryValues(queryParamsToSQLCols map[string]WhereColumnInfo
 			if err != nil {
 				errs = append(errs, errors.New(key+" "+err.Error()))
 			} else {
-				criteria = colInfo.Column + "=:" + key
+				// If it is last_updated, we want to get the entries that have a value which is after
+				// what we have in the request
+				if strings.Contains(colInfo.Column, "last_updated") {
+					criteria = colInfo.Column + ">:" + key
+				} else {
+					criteria = colInfo.Column + "=:" + key
+				}
 				criteriaArgs = append(criteriaArgs, criteria)
 				queryValues[key] = urlValue
 			}

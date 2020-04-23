@@ -63,6 +63,7 @@ func TestReadStatuses(t *testing.T) {
 	testStatuses := getTestStatuses()
 	cols := test.ColsFromStructByTag("db", tc.Status{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testStatuses {
 		rows = rows.AddRow(
@@ -71,9 +72,16 @@ func TestReadStatuses(t *testing.T) {
 			ts.LastUpdated,
 			ts.Name,
 		)
+		rows2 = rows2.AddRow(
+			ts.Description,
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"dsId": "1"}}
@@ -83,7 +91,7 @@ func TestReadStatuses(t *testing.T) {
 		tc.StatusNullable{},
 		sql.NullString{},
 	}
-	statuses, userErr, sysErr, _ := obj.Read()
+	statuses, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

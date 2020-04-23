@@ -73,6 +73,7 @@ func TestGetPhysLocations(t *testing.T) {
 	testCase := getTestPhysLocations()
 	cols := test.ColsFromStructByTag("db", tc.PhysLocation{})
 	rows := sqlmock.NewRows(cols)
+	rows2 := sqlmock.NewRows(cols)
 
 	for _, ts := range testCase {
 		rows = rows.AddRow(
@@ -91,9 +92,26 @@ func TestGetPhysLocations(t *testing.T) {
 			ts.State,
 			ts.Zip,
 		)
+		rows2 = rows2.AddRow(
+			ts.Address,
+			ts.City,
+			ts.Comments,
+			ts.Email,
+			ts.ID,
+			ts.LastUpdated,
+			ts.Name,
+			ts.Phone,
+			ts.POC,
+			ts.RegionID,
+			ts.RegionName,
+			ts.ShortName,
+			ts.State,
+			ts.Zip,
+		)
 	}
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows2)
 	mock.ExpectCommit()
 
 	reqInfo := api.APIInfo{Tx: db.MustBegin(), Params: map[string]string{"dsId": "1"}}
@@ -101,7 +119,7 @@ func TestGetPhysLocations(t *testing.T) {
 		api.APIInfoImpl{&reqInfo},
 		tc.PhysLocationNullable{},
 	}
-	physLocations, userErr, sysErr, _ := obj.Read()
+	physLocations, userErr, sysErr, _ := obj.Read(nil)
 	if userErr != nil || sysErr != nil {
 		t.Errorf("Read expected: no errors, actual: %v %v", userErr, sysErr)
 	}

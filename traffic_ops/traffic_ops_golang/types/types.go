@@ -47,9 +47,10 @@ func (v *TOType) NewReadObj() interface{}       { return &tc.TypeNullable{} }
 func (v *TOType) SelectQuery() string           { return selectQuery() }
 func (v *TOType) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 	return map[string]dbhelpers.WhereColumnInfo{
-		"name":       dbhelpers.WhereColumnInfo{"typ.name", nil},
-		"id":         dbhelpers.WhereColumnInfo{"typ.id", api.IsInt},
-		"useInTable": dbhelpers.WhereColumnInfo{"typ.use_in_table", nil},
+		"name":        dbhelpers.WhereColumnInfo{"typ.name", nil},
+		"id":          dbhelpers.WhereColumnInfo{"typ.id", api.IsInt},
+		"useInTable":  dbhelpers.WhereColumnInfo{"typ.use_in_table", nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"typ.last_updated", nil},
 	}
 }
 func (v *TOType) UpdateQuery() string { return updateQuery() }
@@ -98,7 +99,9 @@ func (typ *TOType) Validate() error {
 	return nil
 }
 
-func (tp *TOType) Read() ([]interface{}, error, error, int) { return api.GenericRead(tp) }
+func (tp *TOType) Read(h map[string][]string) ([]interface{}, error, error, int) {
+	return api.GenericRead(tp, h)
+}
 
 func (tp *TOType) Update() (error, error, int) {
 	if !tp.AllowMutation(false) {

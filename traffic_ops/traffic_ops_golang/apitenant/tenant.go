@@ -59,6 +59,7 @@ func (v *TOTenant) ParamColumns() map[string]dbhelpers.WhereColumnInfo {
 		"name":        dbhelpers.WhereColumnInfo{Column: "q.name", Checker: nil},
 		"parent_id":   dbhelpers.WhereColumnInfo{Column: "q.parent_id", Checker: api.IsInt},
 		"parent_name": dbhelpers.WhereColumnInfo{Column: "p.name", Checker: nil},
+		"lastUpdated": dbhelpers.WhereColumnInfo{"q.last_updated", nil},
 	}
 }
 func (v *TOTenant) UpdateQuery() string { return updateQuery() }
@@ -122,12 +123,12 @@ func (ten TOTenant) Validate() error {
 
 func (tn *TOTenant) Create() (error, error, int) { return api.GenericCreate(tn) }
 
-func (ten *TOTenant) Read() ([]interface{}, error, error, int) {
+func (ten *TOTenant) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	if ten.APIInfo().User.TenantID == auth.TenantIDInvalid {
 		return nil, nil, nil, http.StatusOK
 	}
 
-	tenants, userErr, sysErr, errCode := api.GenericRead(ten)
+	tenants, userErr, sysErr, errCode := api.GenericRead(ten, h)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}
