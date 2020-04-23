@@ -182,7 +182,7 @@ func (fed *TOCDNFederation) Read(h map[string][]string) ([]interface{}, error, e
 			return nil, errors.New("cdn not found"), nil, http.StatusNotFound
 		}
 	}
-	return filteredFederations, nil, nil, http.StatusOK
+	return filteredFederations, nil, nil, errCode
 }
 
 func (fed *TOCDNFederation) Update() (error, error, int) {

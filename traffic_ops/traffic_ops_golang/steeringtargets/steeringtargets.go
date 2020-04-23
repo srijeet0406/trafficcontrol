@@ -20,8 +20,12 @@ package steeringtargets
  */
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-log"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 
@@ -95,7 +99,7 @@ func (st TOSteeringTargetV11) Validate() error {
 }
 
 func (st *TOSteeringTargetV11) Read(h map[string][]string) ([]interface{}, error, error, int) {
-	steeringTargets, userErr, sysErr, errCode := read(st.ReqInfo.Tx, st.ReqInfo.Params, st.ReqInfo.User)
+	steeringTargets, userErr, sysErr, errCode := read(h, st.ReqInfo.Tx, st.ReqInfo.Params, st.ReqInfo.User)
 	if userErr != nil || sysErr != nil {
 		return nil, userErr, sysErr, errCode
 	}
@@ -103,13 +107,60 @@ func (st *TOSteeringTargetV11) Read(h map[string][]string) ([]interface{}, error
 	for i, steeringTarget := range steeringTargets {
 		iSteeringTargets[i] = steeringTarget
 	}
-	return iSteeringTargets, nil, nil, http.StatusOK
+	return iSteeringTargets, nil, nil, errCode
 }
 
-func read(tx *sqlx.Tx, parameters map[string]string, user *auth.CurrentUser) ([]tc.SteeringTargetNullable, error, error, int) {
+func makeFirstQuery(h map[string][]string, val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx) bool {
+	ims := []string{}
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims = h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectQuery() + where + orderBy + pagination
+	rowsMod, err := tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
+func read(h map[string][]string, tx *sqlx.Tx, parameters map[string]string, user *auth.CurrentUser) ([]tc.SteeringTargetNullable, error, error, int) {
 	queryParamsToQueryCols := map[string]dbhelpers.WhereColumnInfo{
 		"deliveryservice": dbhelpers.WhereColumnInfo{"st.deliveryservice", api.IsInt},
 		"target":          dbhelpers.WhereColumnInfo{"st.target", api.IsInt},
+		"lastUpdated":     dbhelpers.WhereColumnInfo{"last_updated", nil},
+	}
+	code := http.StatusOK
+	runSecond := makeFirstQuery(h, queryParamsToQueryCols, tx)
+	if runSecond == false {
+		code =  http.StatusNotModified
+		return []tc.SteeringTargetNullable{}, nil, nil, code
 	}
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(parameters, queryParamsToQueryCols)
 	if len(errs) > 0 {
@@ -156,7 +207,7 @@ func read(tx *sqlx.Tx, parameters map[string]string, user *auth.CurrentUser) ([]
 			continue
 		}
 	}
-	return filteredTargets, nil, nil, http.StatusOK
+	return filteredTargets, nil, nil, code
 }
 
 func (st *TOSteeringTargetV11) Create() (error, error, int) {

@@ -108,7 +108,7 @@ func (st *TOStatus) Read(h map[string][]string) ([]interface{}, error, error, in
 		}
 	}
 
-	return readVals, nil, nil, http.StatusOK
+	return readVals, nil, nil, errCode
 }
 
 func (st *TOStatus) Update() (error, error, int) { return api.GenericUpdate(st) }

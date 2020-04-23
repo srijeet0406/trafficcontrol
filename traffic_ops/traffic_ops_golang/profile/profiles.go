@@ -20,7 +20,10 @@ package profile
  */
 
 import (
+	"database/sql"
 	"errors"
+	"github.com/apache/trafficcontrol/grove/web"
+	"github.com/apache/trafficcontrol/lib/go-rfc"
 	"net/http"
 	"strconv"
 
@@ -44,6 +47,7 @@ const (
 	NameQueryParam        = "name"
 	ParamQueryParam       = "param"
 	TypeQueryParam        = "type"
+	LastUpdatedQueryParam = "lastUpdated"
 )
 
 //we need a type alias to define functions on
@@ -101,6 +105,45 @@ func (prof *TOProfile) Validate() error {
 	return nil
 }
 
+func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map[string][]string) bool {
+	lastUpdatedFilter := make(map[string]string)
+	runSecond := true
+	if h == nil {
+		return runSecond
+	}
+	ims := h[rfc.IfModifiedSince]
+	if ims == nil || len(ims) == 0 {
+		return runSecond
+	}
+	if _, ok := web.ParseHTTPDate(ims[0]); !ok {
+		return runSecond
+	} else {
+		lastUpdatedFilter["lastUpdated"] = ims[0]
+	}
+	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(lastUpdatedFilter, val)
+	if len(errs) > 0 {
+		// Log the error, but still run the second query
+		log.Warnf("Error while forming query clause %v", util.JoinErrs(errs))
+		return runSecond
+	}
+
+	// First query
+	query := selectProfilesQuery() + where + orderBy + pagination
+	rowsMod, err := tx.NamedQuery(query, queryValues)
+	defer rowsMod.Close()
+	if err != nil {
+		// Log the error, but still run the second query
+		log.Warnf("Error while executing last updated query %v", err)
+		return runSecond
+	}
+
+	// The only time we dont want to run the second query is when the first one returned 0 rows
+	if err == sql.ErrNoRows || !rowsMod.Next() {
+		runSecond = false
+	}
+	return runSecond
+}
+
 func (prof *TOProfile) Read(h map[string][]string) ([]interface{}, error, error, int) {
 	// Query Parameters to Database Query column mappings
 	// see the fields mapped in the SQL query
@@ -108,6 +151,16 @@ func (prof *TOProfile) Read(h map[string][]string) ([]interface{}, error, error,
 		CDNQueryParam:  dbhelpers.WhereColumnInfo{"c.id", nil},
 		NameQueryParam: dbhelpers.WhereColumnInfo{"prof.name", nil},
 		IDQueryParam:   dbhelpers.WhereColumnInfo{"prof.id", api.IsInt},
+		LastUpdatedQueryParam: dbhelpers.WhereColumnInfo{"prof.last_updated", nil},
+	}
+	code := http.StatusOK
+	runSecond := makeFirstQuery(queryParamsToQueryCols,prof.ReqInfo.Tx,h)
+	profiles := []tc.ProfileNullable{}
+	profileInterfaces := []interface{}{}
+
+	if runSecond == false {
+		code = http.StatusNotModified
+		return profileInterfaces, nil, nil, code
 	}
 	where, orderBy, pagination, queryValues, errs := dbhelpers.BuildWhereAndOrderByAndPagination(prof.APIInfo().Params, queryParamsToQueryCols)
 
@@ -134,8 +187,6 @@ func (prof *TOProfile) Read(h map[string][]string) ([]interface{}, error, error,
 	}
 	defer rows.Close()
 
-	profiles := []tc.ProfileNullable{}
-
 	for rows.Next() {
 		var p tc.ProfileNullable
 		if err = rows.StructScan(&p); err != nil {
@@ -144,7 +195,6 @@ func (prof *TOProfile) Read(h map[string][]string) ([]interface{}, error, error,
 		profiles = append(profiles, p)
 	}
 	rows.Close()
-	profileInterfaces := []interface{}{}
 	for _, profile := range profiles {
 		// Attach Parameters if the 'id' parameter is sent
 		if _, ok := prof.APIInfo().Params[IDQueryParam]; ok {
@@ -156,7 +206,7 @@ func (prof *TOProfile) Read(h map[string][]string) ([]interface{}, error, error,
 		profileInterfaces = append(profileInterfaces, profile)
 	}
 
-	return profileInterfaces, nil, nil, http.StatusOK
+	return profileInterfaces, nil, nil, code
 
 }
 

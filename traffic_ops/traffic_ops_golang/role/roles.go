@@ -177,7 +177,7 @@ func (role *TORole) Read(h map[string][]string) ([]interface{}, error, error, in
 			returnable = append(returnable, rl.RoleV11)
 		}
 	}
-	return returnable, nil, nil, http.StatusOK
+	return returnable, nil, nil, errCode
 }
 
 func (role *TORole) Update() (error, error, int) {

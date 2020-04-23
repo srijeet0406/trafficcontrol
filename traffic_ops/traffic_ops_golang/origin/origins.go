@@ -143,7 +143,7 @@ func (origin *TOOrigin) Read(h map[string][]string) ([]interface{}, error, error
 		returnable = append(returnable, origin)
 	}
 
-	return returnable, nil, nil, http.StatusOK
+	return returnable, nil, nil, errCode
 }
 
 func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map[string][]string) bool {

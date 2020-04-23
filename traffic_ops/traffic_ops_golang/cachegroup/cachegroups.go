@@ -439,7 +439,7 @@ func (cg *TOCacheGroup) Read(h map[string][]string) ([]interface{}, error, error
 			cacheGroups = append(cacheGroups, s)
 		}
 	}
-	return cacheGroups, nil, nil, http.StatusOK
+	return cacheGroups, nil, nil, code
 }
 
 func makeFirstQuery(val *TOCacheGroup, cols map[string]dbhelpers.WhereColumnInfo, h map[string][]string) bool {

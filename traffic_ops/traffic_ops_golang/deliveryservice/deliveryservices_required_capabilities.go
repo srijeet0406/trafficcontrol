@@ -190,7 +190,7 @@ func (rc *RequiredCapability) Read(h map[string][]string) ([]interface{}, error,
 		results = append(results, capability)
 	}
 
-	return results, nil, nil, http.StatusOK
+	return results, nil, nil, errCode
 }
 
 func (rc *RequiredCapability) getTenantIDs() ([]int, error) {
@@ -272,7 +272,7 @@ func (rc *RequiredCapability) getCapabilities(h map[string][]string, tenantIDs [
 			results = append(results, result)
 		}
 	}
-	return results, nil, nil, 0
+	return results, nil, nil, code
 }
 
 // Delete implements the api.CRUDer interface.

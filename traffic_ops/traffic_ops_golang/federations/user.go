@@ -129,7 +129,7 @@ func (v *TOUsers) Read(h map[string][]string) ([]interface{}, error, error, int)
 	} else if !exists {
 		return nil, fmt.Errorf("federation %v not found", fedID), nil, http.StatusNotFound
 	}
-	return api.GenericRead(v, nil)
+	return api.GenericRead(v, h)
 }
 
 func (v *TOUsers) Delete() (error, error, int) { return api.GenericDelete(v) }

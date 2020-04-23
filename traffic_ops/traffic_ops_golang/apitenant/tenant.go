@@ -147,7 +147,7 @@ func (ten *TOTenant) Read(h map[string][]string) ([]interface{}, error, error, i
 		p := *tenantNames[*t.ParentID]
 		t.ParentName = &p // copy
 	}
-	return tenants, nil, nil, http.StatusOK
+	return tenants, nil, nil, errCode
 }
 
 // IsTenantAuthorized implements the Tenantable interface for TOTenant

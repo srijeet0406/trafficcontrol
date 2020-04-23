@@ -225,7 +225,7 @@ func (s *TOServer) Read(h map[string][]string) ([]interface{}, error, error, int
 		}
 	}
 
-	return returnable, nil, nil, http.StatusOK
+	return returnable, nil, nil, errCode
 }
 
 func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map[string][]string) bool {
@@ -252,6 +252,7 @@ func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map
 
 	// First query
 	query := selectQuery() + where + orderBy + pagination
+	log.Debugln("Query is ", query)
 	rowsMod, err := tx.NamedQuery(query, queryValues)
 	defer rowsMod.Close()
 	if err != nil {
@@ -262,6 +263,7 @@ func makeFirstQuery(val map[string]dbhelpers.WhereColumnInfo, tx *sqlx.Tx, h map
 
 	// The only time we dont want to run the second query is when the first one returned 0 rows
 	if err == sql.ErrNoRows || !rowsMod.Next() {
+		log.Debugln("Got nothing back from lastUpdated query, wont run the second query")
 		runSecond = false
 	}
 	return runSecond
@@ -287,6 +289,7 @@ func getServers(h map[string][]string, params map[string]string, tx *sqlx.Tx, us
 	code := http.StatusOK
 	runSecond := makeFirstQuery(queryParamsToSQLCols, tx, h)
 	if runSecond == false {
+		log.Debugln("Returning 304")
 		code = http.StatusNotModified
 		return []tc.ServerNullable{}, nil, nil, code
 	}
@@ -360,7 +363,7 @@ FULL OUTER JOIN deliveryservice_server dss ON dss.server = s.id
 		servers = append(servers, mids...)
 	}
 
-	return servers, nil, nil, http.StatusOK
+	return servers, nil, nil, code
 }
 
 // getMidServers gets the mids used by the servers in this DS.
