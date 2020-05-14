@@ -204,6 +204,7 @@ func StartOpsConfigManager(
 			}
 		}
 
+		fmt.Println(staticAppData)
 		if cdn, err := getMonitorCDN(realToSession, staticAppData.Hostname); err != nil {
 			handleErr(fmt.Errorf("getting CDN name from Traffic Ops, using config CDN '%s': %s\n", newOpsConfig.CdnName, err))
 		} else {

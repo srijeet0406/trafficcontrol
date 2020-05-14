@@ -68,6 +68,11 @@ public class CertificatesClient {
 
 	public int fetchRawData(final StringBuilder stringBuilder) {
 		while (trafficOpsUtils == null || trafficOpsUtils.getHostname() == null || trafficOpsUtils.getHostname().isEmpty()) {
+			LOGGER.error("SRIJEET!! " + trafficOpsUtils.getHostname());
+//			LOGGER.error("SRIJEET!! " + trafficOpsUtils.getCdnName());
+//			LOGGER.error("SRIJEET!! " + trafficOpsUtils.getAuthUrl());
+//			LOGGER.error("SRIJEET!! " + trafficOpsUtils.getPassword());
+//			LOGGER.error("SRIJEET!! " + trafficOpsUtils.toString());
 			LOGGER.error("No traffic ops hostname yet!");
 			try {
 				Thread.sleep(5000L);
