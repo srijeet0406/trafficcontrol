@@ -47,6 +47,7 @@ import (
 // If certificate deletion is already being processed by a goroutine, another delete will be queued, and this immediately returns nil. Only one delete will ever be queued.
 //
 func DeleteOldCerts(db *sql.DB, tx *sql.Tx, cfg *config.Config, cdn tc.CDNName) error {
+	return nil
 	if !cfg.RiakEnabled {
 		log.Infoln("deleting old delivery service certificates: Riak is not enabled, returning without cleaning up old certificates.")
 		return nil

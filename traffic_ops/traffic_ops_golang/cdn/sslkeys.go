@@ -22,6 +22,7 @@ package cdn
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/apache/trafficcontrol/lib/go-tc"
@@ -38,6 +39,10 @@ func GetSSLKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer inf.Close()
+	fmt.Println(inf.Config)
+	fmt.Println(inf.Config.RiakAuthOptions)
+	fmt.Println(inf.Config.RiakPort)
+	fmt.Println(inf.Config.RiakEnabled)
 	keys, err := getSSLKeys(inf.Tx.Tx, inf.Config.RiakAuthOptions, inf.Config.RiakPort, inf.Params["name"])
 	if err != nil {
 		api.HandleErr(w, r, inf.Tx.Tx, http.StatusInternalServerError, nil, errors.New("getting cdn ssl keys: "+err.Error()))

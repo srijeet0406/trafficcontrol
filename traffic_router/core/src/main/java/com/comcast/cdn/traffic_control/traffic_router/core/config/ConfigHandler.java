@@ -311,6 +311,7 @@ public class ConfigHandler {
 	 */
 	private void parseTrafficOpsConfig(final JsonNode config, final JsonNode stats) throws JsonUtilsException {
 		if (stats.has("tm_host")) {
+			LOGGER.error("SRIJEET!! setting tm_host to " + (JsonUtils.getString(stats, "tm_host")));
 			trafficOpsUtils.setHostname(JsonUtils.getString(stats, "tm_host"));
 		} else if (stats.has("to_host")) {
 			trafficOpsUtils.setHostname(JsonUtils.getString(stats, "to_host"));

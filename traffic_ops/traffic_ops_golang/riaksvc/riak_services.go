@@ -281,6 +281,7 @@ func GetRiakCluster(servers []ServerAddr, authOptions *riak.AuthOptions) (*riak.
 	}
 	nodes := []*riak.Node{}
 	for _, srv := range servers {
+		fmt.Println(srv)
 		nodeOpts := &riak.NodeOptions{
 			RemoteAddress:       srv.FQDN + ":" + srv.Port,
 			AuthOptions:         authOptions,
