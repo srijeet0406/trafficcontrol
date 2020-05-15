@@ -22,7 +22,7 @@ module.exports = {
     timeout: '120s',
     useSSL: true, // set to true if you plan to use https (self-signed or trusted certs).
     port: 8080, // set to http port
-    sslPort: 443, // set to https port
+    sslPort: 9090, // set to https port
     // if useSSL is true, generate ssl certs and provide the proper locations.
     ssl: {
         key:    '/etc/pki/tls/private/localhost.key',
