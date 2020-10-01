@@ -266,11 +266,15 @@ The script takes no options other than the ones accepted by `Hypnotoad <https://
 
 traffic_ops_golang
 ------------------
-``traffic_ops_golang [--version] [--plugins] [--api-routes] --cfg CONFIG_PATH --dbcfg DB_CONFIG_PATH --riakcfg TRAFFIC_VAULT_CONFIG_PATH``
+``traffic_ops_golang [--version] [--plugins] [--api-routes] --cfg CONFIG_PATH --dbcfg DB_CONFIG_PATH --riakcfg TRAFFIC_VAULT_CONFIG_PATH --maplecfg MAPLE_CONFIG_PATH``
 
 .. option:: --cfg CONFIG_PATH
 
 	This **mandatory** command line flag specifies the absolute or relative path to the configuration file to be used by Traffic Ops - `cdn.conf`_.
+
+.. option:: --maplecfg MAPLE_CONFIG_PATH
+
+	This command line flag specifies the absolute or relative path to the configuration file to be used by Traffic Ops to connect to Maple - `maple.conf`_.
 
 .. option:: --dbcfg DB_CONFIG_PATH
 
@@ -538,6 +542,20 @@ This file sets authentication options for connections to Traffic Vault. `traffic
 Example riak.conf
 '''''''''''''''''
 .. include:: ../../../traffic_ops/app/conf/production/riak.conf
+	:code: json
+	:tab-width: 4
+
+maple.conf
+"""""""""
+This file sets authentication options for connections to Maple. `traffic_ops_golang`_ will look for this file at the path given by the value of the :option:`--maplecfg` flag as passed on startup. The contents of ``maple.conf`` are encoded as a JSON object, the keys of which are described below.
+
+:user:          The username to use when authenticating with Maple
+:password:      The password to use when authenticating with Maple
+:url:           The URL to use to connect to Maple
+
+Example maple.conf
+'''''''''''''''''
+.. include:: ../../../traffic_ops/app/conf/production/maple.conf
 	:code: json
 	:tab-width: 4
 

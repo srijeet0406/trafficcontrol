@@ -202,7 +202,7 @@ func TestLoadConfig(t *testing.T) {
 	defer os.Remove(goodRiakCfg) // clean up
 
 	// test bad paths
-	_, errs, blockStartup := LoadConfig(badPath, badPath, badPath, version)
+	_, errs, blockStartup := LoadConfig(badPath, badPath, badPath, "", version)
 	exp = fmt.Sprintf("Loading cdn config from '%s'", badPath)
 	if !strings.HasPrefix(errs[0].Error(), exp) {
 		t.Error("expected", exp, "got", errs[0].Error())
@@ -212,7 +212,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// bad json in cdn.conf
-	_, errs, blockStartup = LoadConfig(badCfg, badCfg, badPath, version)
+	_, errs, blockStartup = LoadConfig(badCfg, badCfg, badPath, "", version)
 	exp = fmt.Sprintf("Loading cdn config from '%s': unmarshalling '%s'", badCfg, badCfg)
 	if !strings.HasPrefix(errs[0].Error(), exp) {
 		t.Error("expected", exp, "got", errs[0].Error())
@@ -222,7 +222,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// good cdn.conf, bad db conf
-	_, errs, blockStartup = LoadConfig(goodCfg, badPath, badPath, version)
+	_, errs, blockStartup = LoadConfig(goodCfg, badPath, badPath, "", version)
 	exp = fmt.Sprintf("reading db conf '%s'", badPath)
 	if !strings.HasPrefix(errs[0].Error(), exp) {
 		t.Error("expected", exp, "got", errs[0].Error())
@@ -232,7 +232,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// good cdn.conf,  bad json in database.conf
-	_, errs, blockStartup = LoadConfig(goodCfg, badCfg, badPath, version)
+	_, errs, blockStartup = LoadConfig(goodCfg, badCfg, badPath, "", version)
 	exp = fmt.Sprintf("unmarshalling '%s'", badCfg)
 	if !strings.HasPrefix(errs[0].Error(), exp) {
 		t.Error("expected", exp, "got", errs[0].Error())
@@ -242,7 +242,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// good cdn.conf,  good database.conf
-	cfg, errs, blockStartup = LoadConfig(goodCfg, goodDbCfg, goodRiakCfg, version)
+	cfg, errs, blockStartup = LoadConfig(goodCfg, goodDbCfg, goodRiakCfg, "", version)
 	if len(errs) != 0 {
 		t.Error("Good config -- unexpected errors: ", errs)
 	}

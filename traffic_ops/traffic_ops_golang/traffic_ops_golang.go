@@ -59,6 +59,7 @@ func main() {
 	configFileName := flag.String("cfg", "", "The config file path")
 	dbConfigFileName := flag.String("dbcfg", "", "The db config file path")
 	riakConfigFileName := flag.String("riakcfg", "", "The riak config file path")
+	mapleConfigFileName := flag.String("maplecfg", "", "The maple config file path")
 	flag.Parse()
 
 	if *showVersion {
@@ -97,7 +98,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, errsToLog, blockStart := config.LoadConfig(*configFileName, *dbConfigFileName, *riakConfigFileName, version)
+	cfg, errsToLog, blockStart := config.LoadConfig(*configFileName, *dbConfigFileName, *riakConfigFileName, *mapleConfigFileName, version)
 	for _, err := range errsToLog {
 		fmt.Fprintf(os.Stderr, "Loading Config: %v\n", err)
 	}

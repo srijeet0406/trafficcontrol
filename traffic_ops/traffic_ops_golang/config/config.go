@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/trafficcontrol/traffic_ops/traffic_ops_golang/maple"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -61,6 +62,7 @@ type Config struct {
 	InfluxDBConfPath string `json:"influxdb_conf_path"`
 	Version          string
 	UseIMS           bool `json:"use_ims"`
+	MapleAuthOptions *maple.MapleAuth
 }
 
 // ConfigHypnotoad carries http setting for hypnotoad (mojolicious) server
@@ -247,7 +249,7 @@ func LoadCdnConfig(cdnConfPath string) (Config, error) {
 
 // LoadConfig - reads the config file into the Config struct
 
-func LoadConfig(cdnConfPath string, dbConfPath string, riakConfPath string, appVersion string) (Config, []error, bool) {
+func LoadConfig(cdnConfPath string, dbConfPath string, riakConfPath string, mapleConfPath string, appVersion string) (Config, []error, bool) {
 	// load cdn.conf
 	cfg, err := LoadCdnConfig(cdnConfPath)
 	if err != nil {
@@ -273,6 +275,13 @@ func LoadConfig(cdnConfPath string, dbConfPath string, riakConfPath string, appV
 		cfg.RiakEnabled, cfg.RiakAuthOptions, err = riaksvc.GetRiakConfig(riakConfPath)
 		if err != nil {
 			return Config{}, []error{fmt.Errorf("parsing config '%s': %v", riakConfPath, err)}, BlockStartup
+		}
+	}
+	// check for maple username and password
+	if mapleConfPath != "" {
+		cfg.MapleAuthOptions, err = maple.GetMapleConfig(mapleConfPath)
+		if err != nil {
+			return Config{}, []error{fmt.Errorf("parsing config '%s': %v", mapleConfPath, err)}, BlockStartup
 		}
 	}
 	// check for and load ldap.conf
