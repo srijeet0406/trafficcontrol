@@ -24,6 +24,7 @@ import (
  * specific language governing permissions and limitations
  * under the License.
  */
+const MapleDatabase = "vnd.com.comcast.maple.ds"
 
 type MapleAuth struct {
 	User      string

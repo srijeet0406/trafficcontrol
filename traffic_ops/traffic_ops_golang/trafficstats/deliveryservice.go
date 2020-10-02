@@ -75,7 +75,7 @@ const (
 		GROUP BY time(%s, %s), cachegroup%s`
 )
 
-func dsConfigFromRequest(r *http.Request, i *api.APIInfo) (tc.TrafficDSStatsConfig, int, error) {
+func DsConfigFromRequest(r *http.Request, i *api.APIInfo) (tc.TrafficDSStatsConfig, int, error) {
 	c := tc.TrafficDSStatsConfig{}
 	statsConfig, rc, e := tsConfigFromRequest(r, i)
 	if e != nil {
@@ -125,7 +125,7 @@ func GetDSStats(w http.ResponseWriter, r *http.Request) {
 	defer inf.Close()
 
 	var c tc.TrafficDSStatsConfig
-	if c, errCode, userErr = dsConfigFromRequest(r, inf); userErr != nil {
+	if c, errCode, userErr = DsConfigFromRequest(r, inf); userErr != nil {
 		sysErr = fmt.Errorf("Unable to process deliveryservice_stats request: %v", userErr)
 		api.HandleErr(w, r, tx, errCode, userErr, sysErr)
 		return
@@ -145,7 +145,7 @@ func GetDSStats(w http.ResponseWriter, r *http.Request) {
 	}
 	defer (*client).Close()
 
-	exists, dsTenant, err := dsTenantIDFromXMLID(c.DeliveryService, tx)
+	exists, dsTenant, err := DsTenantIDFromXMLID(c.DeliveryService, tx)
 	if err != nil {
 		sysErr = err
 		errCode = http.StatusInternalServerError
@@ -348,7 +348,7 @@ func getDSSummary(client *influx.Client, conf *tc.TrafficDSStatsConfig, db strin
 	return ts, totalKB, totalTXN, nil
 }
 
-func dsTenantIDFromXMLID(xmlid string, tx *sql.Tx) (bool, uint, error) {
+func DsTenantIDFromXMLID(xmlid string, tx *sql.Tx) (bool, uint, error) {
 	row := tx.QueryRow(dsTenantIDFromXMLIDQuery, xmlid)
 	var tid uint
 	err := row.Scan(&tid)
