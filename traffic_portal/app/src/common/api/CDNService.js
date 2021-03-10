@@ -235,17 +235,6 @@ var CDNService = function($http, locationUtils, messageModel, ENV) {
         );
     };
 
-    this.getLocks = function(queryParams) {
-        return $http.get(ENV.api['root'] + 'cdn_lock', { params: queryParams }).then(
-            function(result) {
-                return result.data.response;
-            },
-            function(err) {
-                throw err;
-            }
-        );
-    };
-
     this.createNotification = function(cdn, notification) {
         return $http.post(ENV.api['root'] + 'cdn_notifications', { cdn: cdn.name, notification: notification}).then(
             function(result) {
@@ -260,6 +249,29 @@ var CDNService = function($http, locationUtils, messageModel, ENV) {
 
     this.deleteNotification = function(queryParams) {
         return $http.delete(ENV.api['root'] + 'cdn_notifications', { params: queryParams }).then(
+            function(result) {
+                return result;
+            },
+            function(err) {
+                messageModel.setMessages(err.data.alerts, false);
+                throw err;
+            }
+        );
+    };
+
+    this.getLocks = function(queryParams) {
+        return $http.get(ENV.api['root'] + 'cdn_lock', { params: queryParams }).then(
+            function(result) {
+                return result.data.response;
+            },
+            function(err) {
+                throw err;
+            }
+        );
+    };
+
+    this.deleteLock = function(queryParams) {
+        return $http.delete(ENV.api['root'] + 'cdn_lock', { params: queryParams }).then(
             function(result) {
                 return result;
             },

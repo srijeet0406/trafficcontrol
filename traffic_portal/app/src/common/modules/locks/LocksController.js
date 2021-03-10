@@ -17,7 +17,7 @@
  * under the License.
  */
 
-var LocksController = function($scope, $rootScope, $interval, cdnService) {
+var LocksController = function($scope, $rootScope, $interval, $state, $uibModal, cdnService, userModel) {
 
 	let interval;
 
@@ -39,6 +39,35 @@ var LocksController = function($scope, $rootScope, $interval, cdnService) {
 		}
 	};
 
+	$scope.loggedInUser = userModel.user.username;
+
+	$scope.confirmUnlock = function(lock) {
+		const params = {
+			title: 'Remove lock from: ' + lock.cdnName,
+			message: 'Are you sure you want to remove the lock from the ' + lock.cdnName + ' CDN?'
+		};
+		const modalInstance = $uibModal.open({
+			templateUrl: 'common/modules/dialog/confirm/dialog.confirm.tpl.html',
+			controller: 'DialogConfirmController',
+			size: 'md',
+			resolve: {
+				params: function () {
+					return params;
+				}
+			}
+		});
+		modalInstance.result.then(function() {
+			cdnService.deleteLock({ cdn: lock.cdnName }).
+				then(
+					function() {
+						$state.reload();
+					}
+				);
+		}, function () {
+			// do nothing
+		});
+	};
+
 	$scope.$on("$destroy", function() {
 		killInterval();
 	});
@@ -51,5 +80,5 @@ var LocksController = function($scope, $rootScope, $interval, cdnService) {
 
 };
 
-LocksController.$inject = ['$scope', '$rootScope', '$interval', 'cdnService'];
+LocksController.$inject = ['$scope', '$rootScope', '$interval', '$state', '$uibModal', 'cdnService', 'userModel'];
 module.exports = LocksController;
