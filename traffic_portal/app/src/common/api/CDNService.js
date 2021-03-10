@@ -235,6 +235,17 @@ var CDNService = function($http, locationUtils, messageModel, ENV) {
         );
     };
 
+    this.getLocks = function(queryParams) {
+        return $http.get(ENV.api['root'] + 'cdn_lock', { params: queryParams }).then(
+            function(result) {
+                return result.data.response;
+            },
+            function(err) {
+                throw err;
+            }
+        );
+    };
+
     this.createNotification = function(cdn, notification) {
         return $http.post(ENV.api['root'] + 'cdn_notifications', { cdn: cdn.name, notification: notification}).then(
             function(result) {
